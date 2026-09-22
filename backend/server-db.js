@@ -11,9 +11,15 @@ const multer = require("multer");
 const app = express();
 const PORT = process.env.PORT || 5000;
 const ROOT = path.join(__dirname, "..");
-const uploadDir = path.join(ROOT, "frontend", "assets", "item_images");
-if (!fs.existsSync(uploadDir)) {
-    fs.mkdirSync(uploadDir, { recursive: true });
+const uploadDir = process.env.VERCEL
+    ? path.join("/tmp", "item_images")
+    : path.join(ROOT, "frontend", "assets", "item_images");
+try {
+    if (!fs.existsSync(uploadDir)) {
+        fs.mkdirSync(uploadDir, { recursive: true });
+    }
+} catch (e) {
+    console.warn("[Upload Dir]", e.message);
 }
 const storage = multer.diskStorage({
     destination: (_req, _file, cb) => cb(null, uploadDir),
@@ -53,7 +59,13 @@ if (process.env.DB_SSL === "true" || process.env.DB_SSL === "1" || (dbConfig.hos
     dbConfig.ssl = { rejectUnauthorized: false };
 }
 
-let pool;
+let pool = mysql.createPool({
+    ...dbConfig,
+    waitForConnections: true,
+    connectionLimit: 10,
+    enableKeepAlive: true,
+    keepAliveInitialDelay: 10000
+});
 
 async function initialiseDatabase() {
     const targetDb = dbConfig.database || "borrowhub";
@@ -167,7 +179,14 @@ const apiRoutes = [
 ];
 app.get("/api", (_req, res) => res.json({ name: "BorrowHub API", baseUrl: "http://localhost:5000", routes: apiRoutes.map(([method, p]) => ({ method, path: p })) }));
 app.get("/routes", (_req, res) => res.redirect("/api"));
-app.get("/api/health", (_req, res) => res.json({ ok: true, service: "BorrowHub API", database: dbName }));
+app.get("/api/health", async (_req, res) => {
+    try {
+        await pool.query("SELECT 1");
+        res.json({ ok: true, service: "BorrowHub API", database: dbConfig.database, dbConnected: true });
+    } catch (err) {
+        res.json({ ok: true, service: "BorrowHub API", database: dbConfig.database, dbConnected: false, error: err.message });
+    }
+});
 
 // List all supported colleges (Pune region)
 const PUNE_COLLEGES = [
@@ -326,6 +345,7 @@ app.get("/api/notifications/:userId", async (req, res, next) => { try { const [r
 app.patch("/api/notifications/:id/read", async (req, res, next) => { try { await pool.query("UPDATE notifications SET is_read=TRUE WHERE notification_id=?", [req.params.id]); res.json({ ok: true }); } catch (e) { next(e); } });
 
 app.use(express.static(ROOT));
+app.use(express.static(path.join(ROOT, "frontend")));
 app.get("/", (_req, res) => res.sendFile(path.join(ROOT, "frontend", "index.html")));
 app.get("/auth", (_req, res) => res.sendFile(path.join(ROOT, "frontend", "auth.html")));
 app.get("/login", (_req, res) => res.sendFile(path.join(ROOT, "frontend", "login.html")));
@@ -334,4 +354,12 @@ app.get("/forgot-password", (_req, res) => res.sendFile(path.join(ROOT, "fronten
 app.get("/dashboard", (_req, res) => res.sendFile(path.join(ROOT, "frontend", "dashboard.html")));
 app.use((error, _req, res, _next) => { console.error(error); res.status(500).json({ message: "Database request failed." }); });
 
-initialiseDatabase().then(() => app.listen(PORT, () => console.log("BorrowHub running at http://localhost:" + PORT))).catch((error) => { console.error("Could not connect to MySQL:", error.message); process.exit(1); });
+if (!process.env.VERCEL) {
+    initialiseDatabase()
+        .then(() => app.listen(PORT, () => console.log("BorrowHub running at http://localhost:" + PORT)))
+        .catch((error) => { console.error("Could not connect to MySQL:", error.message); process.exit(1); });
+} else {
+    initialiseDatabase().catch((error) => { console.warn("[Database Init Warning]:", error.message); });
+}
+
+module.exports = app;
