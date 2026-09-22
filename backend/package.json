@@ -1,0 +1,25 @@
+{
+    "name": "borrowhub-backend",
+    "version": "1.0.0",
+    "private": true,
+    "main": "app.js",
+    "scripts": {
+        "start": "node app.js",
+        "dev": "node --watch app.js"
+    },
+    "dependencies": {
+        "@ai-sdk/openai": "^4.0.72",
+        "ai": "^7.0.109",
+        "bcryptjs": "^3.0.2",
+        "cors": "^2.8.5",
+        "dotenv": "^16.0.0",
+        "express": "^5.1.0",
+        "multer": "^2.4.0",
+        "mysql2": "^3.14.3"
+    },
+    "devDependencies": {
+        "@types/node": "^26.6.2",
+        "tsx": "^4.23.15",
+        "typescript": "^7.0.2"
+    }
+}

@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BorrowHub — Campus Dashboard</title>
+    <meta name="description" content="Manage campus borrows, items, writing requests and community orders on BorrowHub.">
+    <link rel="stylesheet" href="/frontend/style.css">
+    <style>
+        .sidebar-logo-img {
+            height: 38px;
+            width: 38px;
+            object-fit: cover;
+            border-radius: 8px;
+            flex-shrink: 0;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.25);
+            border: 1.5px solid rgba(255,255,255,0.25);
+        }
+        .college-pill {
+            display: inline-block;
+            background: rgba(255,255,255,0.12);
+            border-radius: 20px;
+            padding: 3px 10px;
+            font-size: 10.5px;
+            color: rgba(255,255,255,0.75);
+            max-width: 180px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            margin-top: 2px;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="app">
+        <!-- Sidebar -->
+        <aside class="sidebar" id="sidebar">
+            <a href="/frontend/index.html" class="brand" style="text-decoration: none; cursor: pointer;" title="Back to Landing Page">
+                <img src="/frontend/assets/logo.jpg" alt="BorrowHub" class="sidebar-logo-img">
+                <div style="overflow:hidden;">
+                    <p class="brand-name">BorrowHub <span style="font-size: 10px; background: rgba(255,255,255,0.18); padding: 2px 6px; border-radius: 99px; margin-left: 4px; font-weight: normal;">Live</span></p>
+                    <p class="brand-tag" id="college-pill-label">Share resources • Hire a writer</p>
+                </div>
+            </a>
+
+            <nav class="nav" id="nav">
+                <p class="nav-group-label">Resource sharing</p>
+                <button class="nav-item" data-view="dashboard">
+                    <span>📊 Dashboard</span>
+                </button>
+                <button class="nav-item" data-view="items">
+                    <span>🔍 Browse items</span>
+                </button>
+                <button class="nav-item" data-view="my-items">
+                    <span>📦 My items</span>
+                </button>
+                <button class="nav-item" data-view="borrow-requests">
+                    <span>📬 Borrow requests</span>
+                </button>
+                <button class="nav-item" data-view="transactions">
+                    <span>🔄 Transactions</span>
+                </button>
+                <button class="nav-item" data-view="need-board">
+                    <span>📢 Need board</span>
+                </button>
+
+                <p class="nav-group-label nav-group-label--writing">Academic Writing</p>
+                <button class="nav-item" data-view="writing-requests">
+                    <span>📝 Writing requests</span>
+                </button>
+                <button class="nav-item" data-view="writers">
+                    <span>✍️ Writers directory</span>
+                </button>
+                <button class="nav-item" data-view="writing-orders">
+                    <span>📋 Writing orders</span>
+                </button>
+
+                <p class="nav-group-label">Account & Hub</p>
+                <button class="nav-item" data-view="favorites">
+                    <span>⭐ Favorites</span>
+                </button>
+                <button class="nav-item" data-view="notifications">
+                    <span>🔔 Notifications</span>
+                    <span id="notif-dot" class="dot hidden"></span>
+                </button>
+                <button class="nav-item" data-view="profile">
+                    <span>👤 Profile</span>
+                </button>
+            </nav>
+
+            <div style="margin: 12px 0 6px; padding: 10px; background: rgba(255, 255, 255, 0.05); border-radius: 8px; font-size: 12px; color: #94a3b8; display: flex; align-items: center; justify-content: space-between;">
+                <span>Campus Network</span>
+                <a href="/frontend/index.html" style="color: #38bdf8; text-decoration: none; font-weight: 600;">Home &rarr;</a>
+            </div>
+
+            <div class="sidebar-footer" id="auth-box"></div>
+        </aside>
+
+        <!-- Main Dashboard View Area -->
+        <main class="main">
+            <header class="topbar">
+                <div>
+                    <div style="font-size: 12px; color: var(--indigo); font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px;">Campus Hub</div>
+                    <h1 id="view-title">Dashboard</h1>
+                    <p id="view-desc">A quick look at what's happening around campus.</p>
+                </div>
+                <div id="topbar-actions" class="topbar-actions"></div>
+            </header>
+
+            <div id="banner" class="banner hidden"></div>
+            <section id="view-content" class="view-content"></section>
+        </main>
+    </div>
+
+    <!-- Universal Modal Dialog -->
+    <div id="modal-overlay" class="modal-overlay hidden">
+        <div class="modal" id="modal-box"></div>
+    </div>
+
+    <script src="/backend/app.js"></script>
+</body>
+
+</html>

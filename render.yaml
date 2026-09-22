@@ -1,0 +1,21 @@
+services:
+  - type: web
+    name: borrowhub
+    env: node
+    buildCommand: cd backend && npm install
+    startCommand: node backend/server-db.js
+    envVars:
+      - key: PORT
+        value: 10000
+      - key: DB_HOST
+        sync: false
+      - key: DB_PORT
+        sync: false
+      - key: DB_USER
+        sync: false
+      - key: DB_PASSWORD
+        sync: false
+      - key: DB_NAME
+        sync: false
+      - key: DB_SSL
+        value: true

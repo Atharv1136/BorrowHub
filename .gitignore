@@ -1,0 +1,29 @@
+# Dependencies
+node_modules/
+backend/node_modules/
+
+# Environment / secrets — NEVER commit these
+.env
+.env.local
+.env.*.local
+
+# Uploaded item images (user content)
+frontend/assets/item_images/
+
+# Build outputs
+dist/
+build/
+.next/
+
+# OS & editor
+.DS_Store
+Thumbs.db
+*.log
+.vscode/settings.json
+
+# Vercel
+.vercel/
+
+# TypeScript build
+*.js.map
+tsconfig.tsbuildinfo

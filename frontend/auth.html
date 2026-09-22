@@ -1,0 +1,352 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>BorrowHub — Account Authentication</title>
+    <meta name="description" content="Sign in, sign up, or recover password for your BorrowHub campus account.">
+    <link rel="stylesheet" href="/frontend/style.css">
+    <style>
+        .logo-img-header {
+            height: 36px;
+            width: auto;
+            object-fit: contain;
+            border-radius: 6px;
+        }
+        .auth-select {
+            width: 100%;
+            padding: 11px 14px;
+            border: 1.5px solid var(--line);
+            border-radius: 8px;
+            font-size: 14px;
+            background: var(--surface);
+            color: var(--ink);
+            transition: border-color 0.15s ease, box-shadow 0.15s ease;
+            cursor: pointer;
+            appearance: none;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%2394a3b8' stroke-width='2' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 14px center;
+            padding-right: 36px;
+        }
+        .auth-select:focus {
+            outline: none;
+            border-color: var(--line-focus);
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+        }
+        .college-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            background: #eff6ff;
+            border: 1px solid #bfdbfe;
+            border-radius: 6px;
+            padding: 6px 10px;
+            font-size: 12px;
+            color: #1e40af;
+            font-weight: 500;
+            margin-top: 6px;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="auth-split-wrapper">
+        <!-- Left Side: Interactive Form Area -->
+        <main class="auth-form-side">
+            <!-- Nav Bar -->
+            <div class="auth-nav-bar">
+                <a href="/frontend/index.html" class="site-logo">
+                    <img src="/frontend/assets/logo.jpg" alt="BorrowHub Logo" class="site-logo-img">
+                    <span class="site-logo-text" style="font-size:20px; font-weight:800; color:#0f172a;">Borrow<span style="color:#2563eb;">Hub</span></span>
+                </a>
+                <a href="/frontend/index.html" class="auth-back-link">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+                    Back to Home
+                </a>
+            </div>
+
+            <!-- Card Core -->
+            <div class="auth-card-core">
+                <h1 class="auth-header-title" id="auth-heading">Sign In</h1>
+                <p class="auth-header-sub" id="auth-subtext">Access your campus account to borrow gear or accept writing requests.</p>
+
+                <!-- Segmented Tabs -->
+                <nav class="auth-segmented-control" aria-label="Authentication modes">
+                    <a id="tab-login" class="auth-segment-btn" href="/frontend/auth.html?mode=login">Sign in</a>
+                    <a id="tab-signup" class="auth-segment-btn" href="/frontend/auth.html?mode=signup">Sign up</a>
+                    <a id="tab-password" class="auth-segment-btn" href="/frontend/auth.html?mode=password">Forgot password</a>
+                </nav>
+
+                <!-- Feedback Alert -->
+                <div id="auth-alert" class="auth-status-alert hidden" role="alert"></div>
+
+                <!-- Form -->
+                <form id="auth-form" class="auth-form-group" novalidate></form>
+
+                <!-- Switch links -->
+                <div id="auth-switch-box" class="auth-switch-options"></div>
+            </div>
+
+            <div style="font-size: 12.5px; color: var(--ink-muted); text-align: center; margin-top: 30px;">
+                🔒 Campus-only network • Same college peer sharing only
+            </div>
+        </main>
+
+        <!-- Right Side: Visual Showcase -->
+        <aside class="auth-visual-side">
+            <img src="/frontend/assets/auth_showcase.jpg" alt="BorrowHub student academic collaboration" class="auth-visual-bg-image">
+            <div class="auth-visual-overlay-glow"></div>
+
+            <div class="auth-visual-top">
+                <div class="auth-badge-live">
+                    <span class="hero-pill-pulse" style="background: #38bdf8;"></span>
+                    <span>100% Same-College Verified Network</span>
+                </div>
+                <p style="margin-top: 12px; font-size: 13.5px; color: #94a3b8;">
+                    Only students from your own college can borrow from each other — ensuring trust, safety & accountability.
+                </p>
+            </div>
+
+            <div class="auth-visual-card-showcase">
+                <p class="auth-visual-quote">
+                    "BorrowHub transformed how our department collaborates. I borrowed an Arduino kit for our 3rd-year project and got notes from a top student writer — all within PICT campus!"
+                </p>
+                <div class="auth-visual-user">
+                    <div class="auth-visual-user-avatar">K</div>
+                    <div class="auth-visual-user-info">
+                        <h5>Kadambari</h5>
+                        <p>PICT, E&TC Dept • 2nd Year</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="auth-visual-bottom-stats">
+                <div class="auth-vstat">
+                    <h4>21</h4>
+                    <p>Pune Colleges</p>
+                </div>
+                <div class="auth-vstat">
+                    <h4>1.2k+</h4>
+                    <p>Borrows Done</p>
+                </div>
+                <div class="auth-vstat">
+                    <h4>4.9 ★</h4>
+                    <p>Avg Rating</p>
+                </div>
+            </div>
+        </aside>
+    </div>
+
+    <script>
+        const isLocalDev = (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1") && window.location.port !== "5000" && window.location.port !== "";
+        const API_BASE = isLocalDev ? "http://localhost:5000/api" : "/api";
+
+        const urlParams = new URLSearchParams(window.location.search);
+        const requestedMode = urlParams.get("mode");
+        const mode = ["login", "signup", "password"].includes(requestedMode) ? requestedMode : "login";
+
+        const headingEl = document.getElementById("auth-heading");
+        const subtextEl = document.getElementById("auth-subtext");
+        const formEl = document.getElementById("auth-form");
+        const alertEl = document.getElementById("auth-alert");
+        const switchBoxEl = document.getElementById("auth-switch-box");
+
+        // Mark active tab
+        document.querySelectorAll(".auth-segment-btn").forEach(btn => btn.classList.remove("active"));
+        const activeTab = document.getElementById(`tab-${mode}`);
+        if (activeTab) activeTab.classList.add("active");
+
+        // Pune colleges list (same as backend)
+        const PUNE_COLLEGES = [
+            "Pune Institute of Computer Technology (PICT)",
+            "College of Engineering Pune (COEP)",
+            "Vishwakarma Institute of Technology (VIT Pune)",
+            "MIT College of Engineering (MITCOE)",
+            "Symbiosis Institute of Technology (SIT Pune)",
+            "Army Institute of Technology (AIT Pune)",
+            "Dr. D.Y. Patil College of Engineering (DYPCE)",
+            "Bharati Vidyapeeth College of Engineering (BVCE)",
+            "Sinhgad College of Engineering (SCOE)",
+            "Maharashtra Institute of Technology (MIT Kothrud)",
+            "Indira College of Engineering & Management (ICEM)",
+            "Zeal College of Engineering and Research (ZCOER)",
+            "Genba Sopanrao Moze College of Engineering (GSMCOE)",
+            "Savitribai Phule Pune University (SPPU)",
+            "Ferguson College Pune",
+            "Modern College of Engineering Pune",
+            "Cummins College of Engineering for Women",
+            "Pimpri Chinchwad College of Engineering (PCCOE)",
+            "Sandip Institute of Engineering and Management",
+            "NBN Sinhgad School of Engineering",
+            "Other"
+        ];
+
+        const collegeOptions = PUNE_COLLEGES.map(c =>
+            `<option value="${c}">${c}</option>`
+        ).join('');
+
+        if (mode === "login") {
+            headingEl.textContent = "Welcome back";
+            subtextEl.textContent = "Enter your campus credentials to access your dashboard.";
+            formEl.innerHTML = `
+                <div class="auth-input-wrap">
+                    <label class="auth-label" for="inp-email">College Email Address</label>
+                    <input id="inp-email" class="auth-input" type="email" name="email" placeholder="e.g. name@college.edu" required autocomplete="email" autofocus>
+                </div>
+                <div class="auth-input-wrap">
+                    <div style="display:flex;justify-content:space-between;align-items:center;">
+                        <label class="auth-label" for="inp-password">Password</label>
+                        <a href="/frontend/auth.html?mode=password" style="font-size:12.5px;color:var(--indigo);text-decoration:none;font-weight:500;">Forgot password?</a>
+                    </div>
+                    <input id="inp-password" class="auth-input" type="password" name="password" placeholder="Enter your password" required autocomplete="current-password">
+                </div>
+                <button type="submit" class="auth-action-btn">Sign In to Dashboard</button>
+            `;
+            switchBoxEl.innerHTML = `
+                <span>Don't have an account? <a href="/frontend/auth.html?mode=signup">Sign up for free</a></span>
+                <span>Trouble signing in? <a href="/frontend/auth.html?mode=password">Reset your password</a></span>
+            `;
+        } else if (mode === "signup") {
+            headingEl.textContent = "Create your account";
+            subtextEl.textContent = "Join your campus resource sharing and academic writing hub.";
+            formEl.innerHTML = `
+                <div class="auth-input-wrap">
+                    <label class="auth-label" for="inp-name">Full Name</label>
+                    <input id="inp-name" class="auth-input" type="text" name="name" placeholder="e.g. Atharv K." required autofocus>
+                </div>
+                <div class="auth-input-wrap">
+                    <label class="auth-label" for="inp-email">College Email Address</label>
+                    <input id="inp-email" class="auth-input" type="email" name="email" placeholder="e.g. atharv@college.edu" required autocomplete="email">
+                </div>
+                <div class="auth-input-wrap">
+                    <label class="auth-label" for="inp-college">
+                        🏛️ Select Your College
+                        <span style="font-size:11px;color:var(--indigo);font-weight:normal;margin-left:6px;">• Same-college borrowing only</span>
+                    </label>
+                    <select id="inp-college" class="auth-select" name="college_name" required>
+                        <option value="" disabled selected>-- Select your college in Pune --</option>
+                        ${collegeOptions}
+                    </select>
+                    <div class="college-badge" id="college-badge" style="display:none;">
+                        🔒 Only students from the same college can borrow from each other
+                    </div>
+                </div>
+                <div class="auth-input-wrap">
+                    <label class="auth-label" for="inp-password">Password</label>
+                    <input id="inp-password" class="auth-input" type="password" name="password" placeholder="At least 4 characters" minlength="4" required autocomplete="new-password">
+                </div>
+                <div class="auth-row-2col">
+                    <div class="auth-input-wrap">
+                        <label class="auth-label" for="inp-dept">Department</label>
+                        <input id="inp-dept" class="auth-input" type="text" name="department" placeholder="e.g. Computer Eng.">
+                    </div>
+                    <div class="auth-input-wrap">
+                        <label class="auth-label" for="inp-year">Academic Year</label>
+                        <input id="inp-year" class="auth-input" type="text" name="year" placeholder="e.g. 3rd Year">
+                    </div>
+                </div>
+                <div class="auth-row-2col">
+                    <div class="auth-input-wrap">
+                        <label class="auth-label" for="inp-phone">Phone (Optional)</label>
+                        <input id="inp-phone" class="auth-input" type="tel" name="phone" placeholder="e.g. 9800000001">
+                    </div>
+                    <div class="auth-input-wrap">
+                        <label class="auth-label" for="inp-role">Account Purpose</label>
+                        <select id="inp-role" class="auth-select" name="role" style="height:44px;">
+                            <option value="student">Student (Borrow & Lend)</option>
+                            <option value="writer">Academic Writer</option>
+                            <option value="both">Both (Student & Writer)</option>
+                        </select>
+                    </div>
+                </div>
+                <button type="submit" class="auth-action-btn" style="background:var(--emerald-gradient);">Create Account</button>
+            `;
+            switchBoxEl.innerHTML = `
+                <span>Already registered? <a href="/frontend/auth.html?mode=login">Sign in here</a></span>
+            `;
+
+            // Show college badge when college selected
+            setTimeout(() => {
+                const collegeSelect = document.getElementById("inp-college");
+                const badge = document.getElementById("college-badge");
+                if (collegeSelect && badge) {
+                    collegeSelect.addEventListener("change", () => {
+                        badge.style.display = collegeSelect.value ? "inline-flex" : "none";
+                    });
+                }
+            }, 50);
+        } else {
+            headingEl.textContent = "Reset password";
+            subtextEl.textContent = "Enter your registered campus email and choose a new password.";
+            formEl.innerHTML = `
+                <div class="auth-input-wrap">
+                    <label class="auth-label" for="inp-email">College Email Address</label>
+                    <input id="inp-email" class="auth-input" type="email" name="email" placeholder="e.g. name@college.edu" required autocomplete="email" autofocus>
+                </div>
+                <div class="auth-input-wrap">
+                    <label class="auth-label" for="inp-newpw">New Password</label>
+                    <input id="inp-newpw" class="auth-input" type="password" name="new_password" placeholder="At least 4 characters" minlength="4" required autocomplete="new-password">
+                </div>
+                <button type="submit" class="auth-action-btn">Update Password</button>
+            `;
+            switchBoxEl.innerHTML = `
+                <span>Remembered your password? <a href="/frontend/auth.html?mode=login">Back to Sign in</a></span>
+                <span>Need a new account? <a href="/frontend/auth.html?mode=signup">Sign up</a></span>
+            `;
+        }
+
+        // Form submission
+        formEl.addEventListener("submit", async (e) => {
+            e.preventDefault();
+            alertEl.classList.add("hidden");
+            alertEl.className = "auth-status-alert hidden";
+
+            const submitBtn = formEl.querySelector("button[type='submit']");
+            const originalText = submitBtn.textContent;
+            submitBtn.disabled = true;
+            submitBtn.textContent = "Processing...";
+
+            const formData = new FormData(formEl);
+            const payload = Object.fromEntries(formData.entries());
+
+            try {
+                let endpoint = "";
+                let method = "POST";
+                if (mode === "login") endpoint = "/auth/login";
+                else if (mode === "signup") endpoint = "/auth/register";
+                else { endpoint = "/auth/password"; method = "PATCH"; }
+
+                const res = await fetch(`${API_BASE}${endpoint}`, {
+                    method,
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(payload)
+                });
+
+                const data = await res.json();
+                if (!res.ok) throw new Error(data.message || "An error occurred.");
+
+                if (mode === "password") {
+                    alertEl.className = "auth-status-alert success";
+                    alertEl.textContent = "✅ Password updated successfully! You can now sign in.";
+                    alertEl.classList.remove("hidden");
+                    formEl.reset();
+                    submitBtn.disabled = false;
+                    submitBtn.textContent = originalText;
+                } else {
+                    localStorage.setItem("borrowhub_user", JSON.stringify(data));
+                    submitBtn.textContent = "✅ Success! Redirecting...";
+                    setTimeout(() => { window.location.href = "/frontend/dashboard.html"; }, 500);
+                }
+            } catch (err) {
+                alertEl.className = "auth-status-alert error";
+                alertEl.textContent = "❌ " + err.message;
+                alertEl.classList.remove("hidden");
+                submitBtn.disabled = false;
+                submitBtn.textContent = originalText;
+            }
+        });
+    </script>
+</body>
+</html>

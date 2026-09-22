@@ -1,0 +1,407 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>BorrowHub — Campus Resource Sharing & Academic Writing Hub</title>
+    <meta name="description" content="Borrow lab equipment, calculators, and electronics from fellow students. Find verified student writers for notes and assignments.">
+    <link rel="stylesheet" href="/frontend/style.css">
+    <style>
+        .site-logo-img {
+            height: 42px;
+            width: 42px;
+            object-fit: cover;
+            border-radius: 10px;
+            box-shadow: 0 4px 12px rgba(37, 99, 235, 0.2);
+            border: 1.5px solid rgba(37, 99, 235, 0.15);
+        }
+    </style>
+</head>
+
+<body>
+    <!-- Navigation Bar -->
+    <header class="site-header">
+        <div class="nav-container">
+            <a href="/frontend/index.html" class="site-logo">
+                <img src="/frontend/assets/logo.jpg" alt="BorrowHub" class="site-logo-img">
+                <span class="site-logo-text" style="font-size:22px; font-weight:800; color:#0f172a;">Borrow<span style="color:#2563eb;">Hub</span></span>
+            </a>
+
+            <ul class="nav-menu-links">
+                <li><a href="#features">Features</a></li>
+                <li><a href="#how-it-works">How It Works</a></li>
+                <li><a href="#categories">Categories</a></li>
+                <li><a href="#writing-service">Writing Service</a></li>
+                <li><a href="#community">Community</a></li>
+            </ul>
+
+            <div class="nav-auth-actions">
+                <a class="btn-nav-ghost" href="/frontend/auth.html?mode=login">Sign in</a>
+                <a class="btn-nav-primary" href="/frontend/auth.html?mode=signup">Sign up</a>
+            </div>
+        </div>
+    </header>
+
+    <!-- Hero Section -->
+    <main>
+        <section class="hero-section">
+            <div class="hero-grid">
+                <div class="hero-content">
+                    <div class="hero-pill-badge">
+                        <span class="hero-pill-pulse"></span>
+                        Active on Campus • 100% Student Verified
+                    </div>
+                    <h1 class="hero-title">
+                        Borrow what you need. <br>
+                        <span class="hero-title-highlight">Share what you have.</span>
+                    </h1>
+                    <p class="hero-subtitle">
+                        Find calculators, lab equipment, cables, and textbooks from peers across your campus. 
+                        Need academic assistance? Connect with trusted student writers for notes and assignments.
+                    </p>
+                    <div class="hero-buttons">
+                        <a href="/frontend/auth.html?mode=signup" class="btn-hero-main">
+                            Get Started Free 
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"></path><path d="m12 5 7 7-7 7"></path></svg>
+                        </a>
+                        <a href="/frontend/auth.html?mode=login" class="btn-hero-secondary">
+                            Browse Dashboard
+                        </a>
+                    </div>
+                    <div class="hero-trust-indicators">
+                        <div class="hero-trust-item">
+                            <span class="hero-trust-icon">✓</span>
+                            <span>College Email Required</span>
+                        </div>
+                        <div class="hero-trust-item">
+                            <span class="hero-trust-icon">✓</span>
+                            <span>Zero Rental Deposit</span>
+                        </div>
+                        <div class="hero-trust-item">
+                            <span class="hero-trust-icon">✓</span>
+                            <span>Instant Campus Pickup</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Hero Visual with Generated Project Image & Floating Badges -->
+                <div class="hero-visual-card">
+                    <img src="/frontend/assets/hero_borrowhub.jpg" alt="BorrowHub campus equipment exchange and student resource sharing" class="hero-image">
+                    
+                    <!-- Floating Badge Top Right -->
+                    <div class="hero-floating-tag hero-tag-right">
+                        <div class="floating-tag-avatar">⚡</div>
+                        <div class="floating-tag-text">
+                            <h4>Casio FX-991ES</h4>
+                            <p>Handed off at Library • 3-day borrow</p>
+                        </div>
+                    </div>
+
+                    <!-- Floating Badge Bottom Left -->
+                    <div class="hero-floating-tag hero-tag-left">
+                        <div class="floating-tag-avatar">✍️</div>
+                        <div class="floating-tag-text">
+                            <h4>Verified Peer Writer</h4>
+                            <p>DBMS & Java Notes • 4.8 ★ (3 orders)</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Live Statistics Strip -->
+        <section class="stat-strip-section">
+            <div class="stat-strip-container">
+                <div class="stat-item">
+                    <h3>500+</h3>
+                    <p>Enrolled Students</p>
+                </div>
+                <div class="stat-item">
+                    <h3>1,200+</h3>
+                    <p>Successful Borrows</p>
+                </div>
+                <div class="stat-item">
+                    <h3>98.4%</h3>
+                    <p>On-Time Return Rate</p>
+                </div>
+                <div class="stat-item">
+                    <h3>₹0</h3>
+                    <p>Security Deposits</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- Features Grid -->
+        <section id="features" class="section-container">
+            <div class="section-head">
+                <span class="section-eyebrow">Smart Campus Living</span>
+                <h2 class="section-title">Everything you need to thrive without overspending</h2>
+                <p class="section-desc">
+                    Why buy an expensive gadget or tool for a 2-day practical when someone in your hostel block has one sitting idle?
+                </p>
+            </div>
+
+            <div class="features-cards-grid">
+                <div class="feature-modern-card">
+                    <div class="feature-icon-badge badge-blue">🔄</div>
+                    <h3>Peer-to-Peer Borrowing</h3>
+                    <p>Request items with exact start and end dates. Owners approve with 1-click and set meeting points right on campus.</p>
+                </div>
+
+                <div class="feature-modern-card">
+                    <div class="feature-icon-badge badge-green">✍️</div>
+                    <h3>Academic Writing Service</h3>
+                    <p>Need help with lab journals, assignments, or study notes? Post requests and hire peer students with transparent pricing.</p>
+                </div>
+
+                <div class="feature-modern-card">
+                    <div class="feature-icon-badge badge-amber">📢</div>
+                    <h3>Community Need Board</h3>
+                    <p>Can’t find what you need? Post an urgent shoutout. Fellow campus students get notified and offer their items to lend.</p>
+                </div>
+
+                <div class="feature-modern-card">
+                    <div class="feature-icon-badge badge-purple">🛡️</div>
+                    <h3>Verified Campus Profiles</h3>
+                    <p>Every member registers with verified department and year credentials, fostering accountability and trust.</p>
+                </div>
+
+                <div class="feature-modern-card">
+                    <div class="feature-icon-badge badge-rose">⭐</div>
+                    <h3>Reviews & Transparency</h3>
+                    <p>Rate lenders and borrowers after each return. Build your campus reputation as a trusted community member.</p>
+                </div>
+
+                <div class="feature-modern-card">
+                    <div class="feature-icon-badge badge-cyan">🔔</div>
+                    <h3>Automated Notifications</h3>
+                    <p>Receive timely alerts for approval, return dates, and incoming offers so nothing gets delayed or misplaced.</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- How It Works Section -->
+        <section id="how-it-works" class="section-container" style="background: var(--surface-sunken); border-top: 1px solid var(--line); border-bottom: 1px solid var(--line);">
+            <div class="section-head">
+                <span class="section-eyebrow">Simple 4-Step Process</span>
+                <h2 class="section-title">How BorrowHub Works</h2>
+                <p class="section-desc">Quick, safe, and organized exchanges between students in minutes.</p>
+            </div>
+
+            <div class="how-steps-grid">
+                <div class="step-card">
+                    <div class="step-number">01</div>
+                    <h3>Browse or Request</h3>
+                    <p>Search available items like calculators, drawing kits, and microcontrollers, or submit a custom writing task.</p>
+                </div>
+
+                <div class="step-card">
+                    <div class="step-number">02</div>
+                    <h3>Quick Approval</h3>
+                    <p>Pick your dates and reason. The owner receives an instant notification to accept your borrow request.</p>
+                </div>
+
+                <div class="step-card">
+                    <div class="step-number">03</div>
+                    <h3>Campus Hand-off</h3>
+                    <p>Meet up at the library, student center, or department lobby for a quick, hassle-free exchange.</p>
+                </div>
+
+                <div class="step-card">
+                    <div class="step-number">04</div>
+                    <h3>Return & Review</h3>
+                    <p>Return the item on time, mark the transaction complete, and leave peer feedback for community trust.</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- Popular Categories Preview -->
+        <section id="categories" class="section-container">
+            <div class="section-head">
+                <span class="section-eyebrow">Explore Resources</span>
+                <h2 class="section-title">Popular Items on Campus</h2>
+                <p class="section-desc">From tomorrow's semester exam to semester-long projects, find tools in every category.</p>
+            </div>
+
+            <div class="category-preview-grid">
+                <a href="/frontend/auth.html?mode=login" class="cat-preview-card">
+                    <div class="cat-emoji">📐</div>
+                    <h4>Academic Equipment</h4>
+                    <p>Scientific calculators, engineering drawing kits, lab coats, and dissection boxes.</p>
+                </a>
+
+                <a href="/frontend/auth.html?mode=login" class="cat-preview-card">
+                    <div class="cat-emoji">⚡</div>
+                    <h4>Electronics & Tech</h4>
+                    <p>Arduino Uno kits, HDMI cables, presentation remotes, laptop chargers, and sensors.</p>
+                </a>
+
+                <a href="/frontend/auth.html?mode=login" class="cat-preview-card">
+                    <div class="cat-emoji">🏏</div>
+                    <h4>Sports & Games</h4>
+                    <p>Cricket bats, badminton sets, footballs, and board games for hostel tournaments.</p>
+                </a>
+
+                <a href="/frontend/auth.html?mode=login" class="cat-preview-card">
+                    <div class="cat-emoji">📝</div>
+                    <h4>Writing & Notes</h4>
+                    <p>Handwritten lecture notes, DBMS summaries, surveying records, and project templates.</p>
+                </a>
+            </div>
+        </section>
+
+        <!-- Academic Writing Spotlight -->
+        <section id="writing-service" class="section-container" style="background: var(--surface); border-radius: var(--radius-lg); border: 1px solid var(--line); margin-bottom: 80px;">
+            <div class="hero-grid" style="align-items: center;">
+                <div>
+                    <span class="section-eyebrow" style="color: var(--olive);">Academic Writing Service</span>
+                    <h2 class="section-title">Earn by writing, or get help when deadlines pile up</h2>
+                    <p class="section-desc" style="margin-bottom: 24px;">
+                        BorrowHub connects talented student writers with peers needing clean records, handwritten practical notes, or structured project reports.
+                    </p>
+                    <ul style="list-style: none; padding: 0; margin: 0 0 28px; display: flex; flex-direction: column; gap: 12px;">
+                        <li style="display: flex; align-items: center; gap: 10px; font-size: 14.5px; color: var(--ink);">
+                            <span style="color: var(--olive); font-weight: bold;">✓</span> 
+                            Set your own rates per page or project budget
+                        </li>
+                        <li style="display: flex; align-items: center; gap: 10px; font-size: 14.5px; color: var(--ink);">
+                            <span style="color: var(--olive); font-weight: bold;">✓</span> 
+                            Submit proposals and negotiate delivery deadlines directly
+                        </li>
+                        <li style="display: flex; align-items: center; gap: 10px; font-size: 14.5px; color: var(--ink);">
+                            <span style="color: var(--olive); font-weight: bold;">✓</span> 
+                            Upload deliverables and build a verified writer profile with student ratings
+                        </li>
+                    </ul>
+                    <a href="/frontend/auth.html?mode=signup" class="btn btn-olive" style="padding: 12px 24px; font-size: 14.5px; border-radius: var(--radius-pill);">
+                        Register as a Student Writer
+                    </a>
+                </div>
+                <div>
+                    <div style="background: linear-gradient(135deg, #ecfdf5, #f0fdf4); border: 1px solid #a7f3d0; border-radius: 16px; padding: 28px;">
+                        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px;">
+                            <span class="tag" style="background: #10b981; color: white;">Featured Writer</span>
+                            <span style="color: #f59e0b; font-weight: bold; font-size: 14px;">★ 4.8 / 5.0</span>
+                        </div>
+                        <h4 style="font-size: 18px; margin: 0 0 6px;">Atharv — Computer Engineering</h4>
+                        <p style="font-size: 13.5px; color: var(--ink-soft); margin: 0 0 16px;">
+                            "Writes clean, well-structured lecture notes on DBMS, Java, and Data Structures with clear diagrams."
+                        </p>
+                        <div style="display: flex; justify-content: space-between; align-items: center; padding-top: 14px; border-top: 1px solid #d1fae5; font-size: 13px;">
+                        <p>Rate: <strong>₹10 / page</strong></p>
+                            <span>Orders Completed: <strong>3</strong></span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Testimonials -->
+        <section id="community" class="section-container" style="padding-top: 0;">
+            <div class="section-head">
+                <span class="section-eyebrow">Student Testimonials</span>
+                <h2 class="section-title">Loved by students across departments</h2>
+                <p class="section-desc">See how BorrowHub solves everyday campus dilemmas.</p>
+            </div>
+
+            <div class="features-cards-grid">
+                <div class="feature-modern-card">
+                    <p style="font-style: italic; color: var(--ink-soft); margin-bottom: 16px;">
+                        "Needed a scientific calculator for my DBMS internals on 2 hours notice. Found Kadambari's listing on BorrowHub, met near the library, and aced the exam without spending ₹1,200!"
+                    </p>
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        <div style="width: 36px; height: 36px; border-radius: 50%; background: #2563eb; color: white; display: grid; place-items: center; font-weight: bold;">M</div>
+                        <div>
+                            <h4 style="font-size: 14px; margin: 0;">Manish</h4>
+                            <p style="font-size: 12px; color: var(--ink-muted); margin: 0;">2nd Year, Mechanical</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="feature-modern-card">
+                    <p style="font-style: italic; color: var(--ink-soft); margin-bottom: 16px;">
+                        "I had an Arduino kit sitting in my drawer after 2nd year. Now it's being borrowed by juniors for their mini-projects, and I've met awesome developers along the way."
+                    </p>
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        <div style="width: 36px; height: 36px; border-radius: 50%; background: #10b981; color: white; display: grid; place-items: center; font-weight: bold;">S</div>
+                        <div>
+                            <h4 style="font-size: 14px; margin: 0;">Soniya</h4>
+                            <p style="font-size: 12px; color: var(--ink-muted); margin: 0;">3rd Year, IT</p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="feature-modern-card">
+                    <p style="font-style: italic; color: var(--ink-soft); margin-bottom: 16px;">
+                        "The Need Board is brilliant. I needed an HDMI cable for my final seminar presentation and received an offer within 15 minutes. Truly a game changer."
+                    </p>
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        <div style="width: 36px; height: 36px; border-radius: 50%; background: #f59e0b; color: white; display: grid; place-items: center; font-weight: bold;">G</div>
+                        <div>
+                            <h4 style="font-size: 14px; margin: 0;">Govind</h4>
+                            <p style="font-size: 12px; color: var(--ink-muted); margin: 0;">1st Year, Civil</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Bottom CTA Box -->
+        <section class="landing-cta-box">
+            <h2>Ready to borrow what you need?</h2>
+            <p>Join fellow students sharing resources and study gear across your campus today.</p>
+            <div style="display: flex; gap: 14px; justify-content: center; flex-wrap: wrap;">
+                <a href="/frontend/auth.html?mode=signup" class="btn-hero-main" style="background: #2563eb;">
+                    Create Free Account
+                </a>
+                <a href="/frontend/auth.html?mode=login" class="btn-hero-secondary" style="background: rgba(255,255,255,0.1); color: #fff; border-color: rgba(255,255,255,0.3);">
+                    Sign In to Dashboard
+                </a>
+            </div>
+        </section>
+    </main>
+
+    <!-- Footer -->
+    <footer class="site-footer">
+        <div class="footer-inner">
+            <div class="footer-brand">
+                <h3>BorrowHub</h3>
+                <p>Campus resource sharing & academic writing service. Fostering a collaborative, sustainable, and connected campus community.</p>
+            </div>
+            <div class="footer-col">
+                <h4>Platform</h4>
+                <ul>
+                    <li><a href="/frontend/index.html#features">Features</a></li>
+                    <li><a href="/frontend/index.html#categories">Browse Categories</a></li>
+                    <li><a href="/frontend/index.html#how-it-works">How it Works</a></li>
+                    <li><a href="/frontend/auth.html?mode=login">Need Board</a></li>
+                </ul>
+            </div>
+            <div class="footer-col">
+                <h4>Writing Hub</h4>
+                <ul>
+                    <li><a href="/frontend/index.html#writing-service">Hire a Writer</a></li>
+                    <li><a href="/frontend/auth.html?mode=signup">Become a Writer</a></li>
+                    <li><a href="/frontend/auth.html?mode=login">Writing Requests</a></li>
+                    <li><a href="/frontend/auth.html?mode=login">Pricing Guidelines</a></li>
+                </ul>
+            </div>
+            <div class="footer-col">
+                <h4>Account & Safety</h4>
+                <ul>
+                    <li><a href="/frontend/auth.html?mode=login">Sign In</a></li>
+                    <li><a href="/frontend/auth.html?mode=signup">Create Account</a></li>
+                    <li><a href="/frontend/auth.html?mode=password">Forgot Password</a></li>
+                    <li><a href="/frontend/dashboard.html">Dashboard</a></li>
+                </ul>
+            </div>
+        </div>
+        <div class="footer-bottom">
+            <p>&copy; 2026 BorrowHub. Built exclusively for campus students. All rights reserved.</p>
+            <p>Made with pure HTML & CSS</p>
+        </div>
+    </footer>
+</body>
+
+</html>

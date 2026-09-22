@@ -1,0 +1,22 @@
+{
+  "name": "borrowhub",
+  "version": "1.0.0",
+  "private": true,
+  "description": "BorrowHub - Campus Resource Sharing & Academic Writing Hub",
+  "main": "backend/server-db.js",
+  "scripts": {
+    "start": "node backend/server-db.js",
+    "dev": "node backend/server-db.js",
+    "build": "cd backend && npm install"
+  },
+  "dependencies": {
+    "bcryptjs": "^3.0.2",
+    "cors": "^2.8.5",
+    "dotenv": "^16.0.0",
+    "express": "^5.1.0",
+    "multer": "^2.4.0",
+    "mysql2": "^3.14.3",
+    "ai": "^4.0.0",
+    "@ai-sdk/openai": "^1.0.0"
+  }
+}
