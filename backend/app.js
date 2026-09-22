@@ -218,6 +218,7 @@ if (typeof window === "undefined") {
           <option>Pimpri Chinchwad College of Engineering (PCCOE)</option>
           <option>Sandip Institute of Engineering and Management</option>
           <option>NBN Sinhgad School of Engineering</option>
+          <option>Q spider Deccan</option>
           <option>Other</option>
         </select>
         <p class="field-hint">🔒 Only students from the same college can borrow from each other.</p>

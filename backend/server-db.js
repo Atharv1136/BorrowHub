@@ -210,6 +210,7 @@ const PUNE_COLLEGES = [
     "Pimpri Chinchwad College of Engineering (PCCOE)",
     "Sandip Institute of Engineering and Management",
     "NBN Sinhgad School of Engineering",
+    "Q spider Deccan",
     "Other"
 ];
 app.get("/api/colleges", (_req, res) => res.json(PUNE_COLLEGES));
