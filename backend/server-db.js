@@ -136,6 +136,25 @@ async function initialiseDatabase() {
         if (!uCols.length) await pool.query("ALTER TABLE users ADD COLUMN college_name VARCHAR(160) NOT NULL DEFAULT 'Other' AFTER password");
     } catch (e) { console.warn("[DB Column Check]", e.message); }
     await pool.query("CREATE TABLE IF NOT EXISTS categories (category_id INT AUTO_INCREMENT PRIMARY KEY, category_name VARCHAR(100) NOT NULL UNIQUE)");
+    try {
+        const [catRows] = await pool.query("SELECT COUNT(*) AS count FROM categories");
+        if (!catRows[0] || catRows[0].count === 0) {
+            const defaultCats = [
+                "Academic Equipment",
+                "Electronics & Tech",
+                "Project Equipment",
+                "Sports & Games",
+                "Books & Study Material",
+                "Lab & Workshop Equipment",
+                "Hostel & Daily Essentials",
+                "Other"
+            ];
+            for (const c of defaultCats) {
+                await pool.query("INSERT IGNORE INTO categories (category_name) VALUES (?)", [c]);
+            }
+            console.log("[Database Init] Default categories auto-seeded.");
+        }
+    } catch (e) { console.warn("[DB Categories Seed]", e.message); }
     await pool.query("CREATE TABLE IF NOT EXISTS items (item_id INT AUTO_INCREMENT PRIMARY KEY, owner_id INT NOT NULL, category_id INT NOT NULL, item_name VARCHAR(160) NOT NULL, description TEXT, item_condition VARCHAR(40), borrowing_type VARCHAR(20) DEFAULT 'free', max_borrow_period INT DEFAULT 3, location VARCHAR(160), availability BOOLEAN DEFAULT TRUE, image_url VARCHAR(500) DEFAULT NULL, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY (owner_id) REFERENCES users(user_id), FOREIGN KEY (category_id) REFERENCES categories(category_id))");
     try {
         const [iCols] = await pool.query("SHOW COLUMNS FROM items LIKE 'image_url'");
