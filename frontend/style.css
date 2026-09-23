@@ -2246,12 +2246,13 @@ textarea {
         bottom: 0;
         left: 0;
         right: 0;
-        height: 60px;
+        height: calc(60px + env(safe-area-inset-bottom, 0px));
         background: rgba(15, 23, 42, 0.96);
         backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
         border-top: 1px solid rgba(255, 255, 255, 0.1);
         z-index: 45;
-        padding: 4px 6px;
+        padding: 4px 6px calc(4px + env(safe-area-inset-bottom, 0px));
         box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.15);
     }
 
@@ -2268,20 +2269,28 @@ textarea {
         font-size: 10.5px;
         font-weight: 500;
         cursor: pointer;
-        height: 100%;
-        border-radius: 8px;
-        transition: color 0.15s ease;
+        min-height: 44px;
+        border-radius: 10px;
+        transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
         padding: 4px;
+        touch-action: manipulation;
     }
 
     .mobile-bottom-item.active {
         color: #38bdf8;
         font-weight: 700;
+        background: rgba(56, 189, 248, 0.12);
+        transform: translateY(-2px);
     }
 
     .mobile-bottom-item .m-icon {
         font-size: 17px;
         line-height: 1;
+        transition: transform 0.2s ease;
+    }
+
+    .mobile-bottom-item.active .m-icon {
+        transform: scale(1.15);
     }
 
     .mobile-bottom-item.m-add-btn {
@@ -2622,15 +2631,23 @@ textarea {
 
     /* Modals on phones */
     .modal-overlay {
-        padding: 10px;
+        padding: 0;
         align-items: flex-end;
     }
 
     .modal {
         max-width: 100%;
-        max-height: 92vh;
-        border-radius: 18px 18px 10px 10px;
-        padding: 20px 16px 18px;
+        width: 100%;
+        max-height: 90vh;
+        overflow-y: auto;
+        border-radius: 24px 24px 0 0;
+        padding: 22px 18px 24px;
+        animation: slideUpBottomSheet 0.28s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    @keyframes slideUpBottomSheet {
+        from { transform: translateY(100%); }
+        to { transform: translateY(0); }
     }
 
     .modal h2 {

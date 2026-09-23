@@ -201,6 +201,7 @@ async function initialiseDatabase() {
     await pool.query("CREATE TABLE IF NOT EXISTS favorites (user_id INT NOT NULL, item_id INT NOT NULL, PRIMARY KEY (user_id, item_id), FOREIGN KEY (user_id) REFERENCES users(user_id), FOREIGN KEY (item_id) REFERENCES items(item_id))");
     await pool.query("CREATE TABLE IF NOT EXISTS notifications (notification_id INT AUTO_INCREMENT PRIMARY KEY, user_id INT NOT NULL, message TEXT NOT NULL, is_read BOOLEAN DEFAULT FALSE, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY (user_id) REFERENCES users(user_id))");
     await pool.query("CREATE TABLE IF NOT EXISTS writing_orders (order_id INT AUTO_INCREMENT PRIMARY KEY, writing_request_id INT NOT NULL, student_id INT NOT NULL, writer_id INT NOT NULL, agreed_price DECIMAL(10,2), due_date DATE, status VARCHAR(30) DEFAULT 'assigned', created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY (writing_request_id) REFERENCES writing_requests(writing_request_id), FOREIGN KEY (student_id) REFERENCES users(user_id), FOREIGN KEY (writer_id) REFERENCES users(user_id))");
+    await pool.query("CREATE TABLE IF NOT EXISTS writer_profiles (writer_id INT PRIMARY KEY, bio TEXT, subjects VARCHAR(255), price_per_page DECIMAL(8,2) DEFAULT 0.00, sample_work_url VARCHAR(255), is_verified BOOLEAN DEFAULT FALSE, avg_rating DECIMAL(2,1) DEFAULT 0.0, completed_orders INT DEFAULT 0, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY (writer_id) REFERENCES users(user_id) ON DELETE CASCADE)");
 }
 
 function safeUser(row) { const { password, password_hash, ...safe } = row; return safe; }
@@ -561,6 +562,31 @@ app.post("/api/payment/verify", async (req, res, next) => {
     }
 });
 
+app.get("/api/borrow-requests", async (req, res, next) => {
+    try {
+        const { borrower_id, owner_id } = req.query;
+        let sql = `
+            SELECT br.*, i.item_name, i.image_url, i.borrowing_type, i.price_per_day,
+                   u1.name AS borrower_name, u2.name AS owner_name
+            FROM borrow_requests br
+            JOIN items i ON i.item_id = br.item_id
+            JOIN users u1 ON u1.user_id = br.borrower_id
+            JOIN users u2 ON u2.user_id = i.owner_id
+        `;
+        const params = [];
+        if (borrower_id) {
+            sql += " WHERE br.borrower_id = ?";
+            params.push(borrower_id);
+        } else if (owner_id) {
+            sql += " WHERE i.owner_id = ?";
+            params.push(owner_id);
+        }
+        sql += " ORDER BY br.created_at DESC";
+        const [rows] = await pool.query(sql, params);
+        res.json(rows);
+    } catch (e) { next(e); }
+});
+
 app.post("/api/borrow-requests", async (req, res, next) => {
     try {
         // Same-college check: borrower and item owner must be from the same college
@@ -589,6 +615,41 @@ app.post("/api/borrow-requests", async (req, res, next) => {
             [req.body.item_id, req.body.borrower_id, req.body.start_date, req.body.end_date, req.body.reason || "", req.body.message || "", totalPrice, paymentStatus]
         );
         res.status(201).json({ request_id: result.insertId, ...req.body, total_price: totalPrice, payment_status: paymentStatus, status: "requested" });
+    } catch (e) { next(e); }
+});
+
+app.get("/api/writing-requests", async (req, res, next) => {
+    try {
+        const { status } = req.query;
+        let sql = "SELECT wr.*, u.name AS student_name FROM writing_requests wr JOIN users u ON u.user_id = wr.student_id";
+        const params = [];
+        if (status) {
+            sql += " WHERE wr.status = ?";
+            params.push(status);
+        }
+        sql += " ORDER BY wr.created_at DESC";
+        const [rows] = await pool.query(sql, params);
+        res.json(rows);
+    } catch (e) { next(e); }
+});
+
+app.post("/api/writing-requests", async (req, res, next) => {
+    try {
+        const { student_id, title, subject, type, description, length_pages, budget, deadline } = req.body;
+        const [result] = await pool.query(
+            "INSERT INTO writing_requests (student_id, title, subject, type, description, length_pages, budget, deadline) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            [student_id, title, subject || "", type || "notes", description || "", length_pages || 1, budget || 0, deadline || null]
+        );
+        res.status(201).json({ writing_request_id: result.insertId, ...req.body });
+    } catch (e) { next(e); }
+});
+
+app.get("/api/writer-profiles", async (_req, res, next) => {
+    try {
+        const [rows] = await pool.query(
+            "SELECT u.user_id AS writer_id, u.name, u.email, COALESCE(wp.bio, 'Experienced academic writer') AS bio, COALESCE(wp.subjects, 'Assignments, Notes, Reports') AS subjects, COALESCE(wp.price_per_page, 50.00) AS price_per_page, COALESCE(wp.is_verified, TRUE) AS is_verified, COALESCE(wp.avg_rating, 4.8) AS avg_rating, COALESCE(wp.completed_orders, 5) AS completed_orders FROM users u LEFT JOIN writer_profiles wp ON wp.writer_id = u.user_id WHERE u.role IN ('writer', 'both')"
+        );
+        res.json(rows);
     } catch (e) { next(e); }
 });
 
