@@ -494,6 +494,19 @@
   function itemCard(item) {
     const isMine = state.user && item.owner_id === state.user.user_id;
     const imgUrl = item.image_url || 'https://images.unsplash.com/photo-1581291518633-83b4ebd1d83e?w=500&auto=format&fit=crop&q=80';
+    const isPaid = item.borrowing_type === "paid";
+    const dailyPrice = Number(item.price_per_day || 0);
+
+    const priceBadge = isPaid
+      ? `<span class="badge badge-paid">Paid (₹${dailyPrice}/day)</span>`
+      : `<span class="badge badge-free">Free</span>`;
+
+    const availBadge = item.availability
+      ? `<span class="badge badge-available">Available</span>`
+      : (item.unavailable_until
+          ? `<span class="badge badge-unavailable" title="Booked until ${fmtDate(item.unavailable_until)}">Booked until ${fmtDate(item.unavailable_until)}</span>`
+          : `<span class="badge badge-unavailable">Unavailable</span>`);
+
     return `
     <div class="item-card" data-item-id="${item.item_id}">
       <div class="item-card__img-wrap">
@@ -504,11 +517,15 @@
         <h4>${escapeHtml(item.item_name)}</h4>
         <p class="meta">Owner: ${escapeHtml(item.owner_name || "—")} · ${escapeHtml(item.location || "Campus")}</p>
         <p class="desc">${escapeHtml(item.description || "No description provided.")}</p>
-        <p class="meta">${badge(item.availability ? "available" : "unavailable")} ${badge(item.borrowing_type)} · Condition: ${escapeHtml(item.item_condition || "—")}</p>
+        <p class="meta">${availBadge} ${priceBadge} · Condition: ${escapeHtml(item.item_condition || "—")}</p>
         <div class="item-card__foot">
           ${isMine
           ? `<span class="field-hint">This is your item</span>`
-          : `<button class="btn btn-primary btn-sm btn-borrow" data-id="${item.item_id}" ${item.availability ? "" : "disabled"}>Request to borrow</button>`}
+          : (!item.availability
+              ? `<button class="btn btn-secondary btn-sm" disabled style="opacity:0.65; cursor:not-allowed;">${item.unavailable_until ? `Booked until ${fmtDate(item.unavailable_until)}` : "Unavailable"}</button>`
+              : (isPaid
+                  ? `<button class="btn btn-primary btn-sm btn-borrow" data-id="${item.item_id}">⚡ Rent for ₹${dailyPrice}/day</button>`
+                  : `<button class="btn btn-primary btn-sm btn-borrow" data-id="${item.item_id}">Request to borrow</button>`))}
           ${state.user && !isMine ? `<button class="btn-icon btn-fav" data-id="${item.item_id}" title="Save to favorites">♥</button>` : ""}
         </div>
       </div>
@@ -537,35 +554,277 @@
   }
 
   function openBorrowRequestModal(item) {
+    const isPaid = item.borrowing_type === "paid";
+    const dailyRate = Number(item.price_per_day || 0);
+    const today = new Date().toISOString().split("T")[0];
+    const defaultEnd = new Date(Date.now() + 86400000).toISOString().split("T")[0]; // tomorrow
+
     openModal(`
-    <h2>Request to borrow</h2>
-    <p class="modal-sub">${escapeHtml(item.item_name)} · owned by ${escapeHtml(item.owner_name)}</p>
+    <h2>${isPaid ? "Rent / Borrow Item" : "Request to borrow"}</h2>
+    <p class="modal-sub"><strong>${escapeHtml(item.item_name)}</strong> · Owned by ${escapeHtml(item.owner_name)} (${escapeHtml(item.owner_college || "Campus")})</p>
+    
+    ${isPaid ? `
+    <div class="pricing-summary-card">
+      <div class="pricing-badge-row">
+        <span class="badge badge-paid" style="font-size:12px; font-weight:700;">₹${dailyRate} / day</span>
+        <span class="badge-razorpay-secure">🛡️ Secured by Razorpay</span>
+      </div>
+      <div class="pricing-breakdown">
+        <div class="price-row"><span>Daily Rental Rate:</span> <strong>₹${dailyRate.toFixed(2)}</strong></div>
+        <div class="price-row"><span>Booking Duration:</span> <strong id="calc-duration">2 days</strong></div>
+        <div class="price-divider"></div>
+        <div class="price-row total"><span>Total Payable:</span> <strong id="calc-total" style="color: #2563eb; font-size:18px;">₹${(dailyRate * 2).toFixed(2)}</strong></div>
+      </div>
+    </div>
+    ` : `
+    <div class="pricing-summary-card free">
+      <div class="pricing-badge-row">
+        <span class="badge badge-free" style="font-size:12px; font-weight:700;">Free Campus Sharing (₹0)</span>
+      </div>
+      <p style="font-size: 12px; color: #475569; margin: 4px 0 0;">This item is lent free of charge by a fellow campus student.</p>
+    </div>
+    `}
+
     <form id="borrow-form">
       <div class="field-row">
-        <div class="field"><label>From</label><input type="date" name="start_date" required /></div>
-        <div class="field"><label>Until</label><input type="date" name="end_date" required /></div>
+        <div class="field">
+          <label>From Date</label>
+          <input type="date" name="start_date" id="borrow-start-date" min="${today}" value="${today}" required />
+        </div>
+        <div class="field">
+          <label>Until Date</label>
+          <input type="date" name="end_date" id="borrow-end-date" min="${today}" value="${defaultEnd}" required />
+        </div>
       </div>
-      <div class="field"><label>Reason</label><input type="text" name="reason" placeholder="e.g. Internal examination" required /></div>
-      <div class="field"><label>Message to owner (optional)</label><textarea name="message" placeholder="Anything the owner should know"></textarea></div>
+      <div class="field">
+        <label>Reason for borrowing</label>
+        <input type="text" name="reason" placeholder="e.g. Lab experiment, project submission" required />
+      </div>
+      <div class="field">
+        <label>Message to owner (optional)</label>
+        <textarea name="message" placeholder="Pickup location, timing or anything the owner should know"></textarea>
+      </div>
       <div class="modal-actions">
         <button type="button" class="btn btn-ghost" id="cancel-borrow">Cancel</button>
-        <button type="submit" class="btn btn-primary">Send request</button>
+        <button type="submit" class="btn btn-primary" id="btn-submit-borrow">
+          ${isPaid ? `💳 Pay with Razorpay (<span id="btn-pay-amount">₹${(dailyRate * 2).toFixed(2)}</span>)` : "Send Request"}
+        </button>
       </div>
     </form>
   `);
+
+    const startDateEl = $("#borrow-start-date");
+    const endDateEl = $("#borrow-end-date");
+    const durationEl = $("#calc-duration");
+    const totalEl = $("#calc-total");
+    const payBtnAmountEl = $("#btn-pay-amount");
+
+    function calcDays() {
+      const s = new Date(startDateEl.value);
+      const e = new Date(endDateEl.value);
+      const diff = e.getTime() - s.getTime();
+      if (diff < 0) return 0;
+      return Math.max(1, Math.round(diff / (1000 * 60 * 60 * 24)) + 1);
+    }
+
+    function refreshPrice() {
+      if (!isPaid) return;
+      const days = calcDays();
+      if (days <= 0) {
+        if (durationEl) durationEl.textContent = "Invalid dates";
+        if (totalEl) totalEl.textContent = "—";
+        if (payBtnAmountEl) payBtnAmountEl.textContent = "—";
+        return;
+      }
+      const total = (days * dailyRate).toFixed(2);
+      if (durationEl) durationEl.textContent = `${days} day${days > 1 ? "s" : ""}`;
+      if (totalEl) totalEl.textContent = `₹${total}`;
+      if (payBtnAmountEl) payBtnAmountEl.textContent = `₹${total}`;
+    }
+
+    startDateEl.addEventListener("change", () => {
+      if (endDateEl.value < startDateEl.value) endDateEl.value = startDateEl.value;
+      endDateEl.min = startDateEl.value;
+      refreshPrice();
+    });
+    endDateEl.addEventListener("change", refreshPrice);
+    refreshPrice();
+
     $("#cancel-borrow").addEventListener("click", closeModal);
     $("#borrow-form").addEventListener("submit", async (e) => {
       e.preventDefault();
+      const submitBtn = $("#btn-submit-borrow");
+      submitBtn.disabled = true;
+      const originalText = submitBtn.innerHTML;
+      submitBtn.innerHTML = "Processing...";
+
       const fd = Object.fromEntries(new FormData(e.target));
-      try {
-        await api("/borrow-requests", {
-          method: "POST",
-          body: { item_id: item.item_id, borrower_id: state.user.user_id, ...fd },
-        });
-        closeModal();
-        showBanner("Borrow request sent.", "ok");
-        renderView(state.view);
-      } catch (err) { showBanner(err.message, "err"); }
+      const days = calcDays();
+      if (days <= 0) {
+        showBanner("End date must be on or after start date.", "err");
+        submitBtn.disabled = false;
+        submitBtn.innerHTML = originalText;
+        return;
+      }
+
+      // If Paid item, initiate Razorpay Checkout flow
+      if (isPaid && dailyRate > 0) {
+        try {
+          const order = await api("/payment/create-order", {
+            method: "POST",
+            body: {
+              item_id: item.item_id,
+              borrower_id: state.user.user_id,
+              start_date: fd.start_date,
+              end_date: fd.end_date,
+              reason: fd.reason,
+              message: fd.message || ""
+            }
+          });
+
+          if (order.is_free) {
+            closeModal();
+            showBanner("Borrow request sent successfully.", "ok");
+            renderView(state.view);
+            return;
+          }
+
+          // Ensure Razorpay SDK is loaded
+          if (typeof window.Razorpay === "undefined") {
+            await new Promise((resolve, reject) => {
+              const script = document.createElement("script");
+              script.src = "https://checkout.razorpay.com/v1/checkout.js";
+              script.onload = resolve;
+              script.onerror = () => reject(new Error("Failed to load Razorpay payment gateway."));
+              document.head.appendChild(script);
+            });
+          }
+
+          const options = {
+            key: order.key_id || "rzp_test_TfNQR7ZbZUR2Dz",
+            amount: order.amount,
+            currency: order.currency || "INR",
+            name: "BorrowHub Campus",
+            description: `Rental: ${item.item_name} (${order.days} days)`,
+            image: "/frontend/assets/logo.jpg",
+            order_id: order.order_id,
+            handler: async function (response) {
+              try {
+                showBanner("Verifying payment...", "ok");
+                await api("/payment/verify", {
+                  method: "POST",
+                  body: {
+                    razorpay_order_id: response.razorpay_order_id,
+                    razorpay_payment_id: response.razorpay_payment_id,
+                    razorpay_signature: response.razorpay_signature,
+                    item_id: item.item_id,
+                    borrower_id: state.user.user_id,
+                    start_date: fd.start_date,
+                    end_date: fd.end_date,
+                    reason: fd.reason,
+                    message: fd.message || "",
+                    total_price: order.total_price,
+                    days: order.days
+                  }
+                });
+
+                closeModal();
+                openPaymentSuccessModal({
+                  itemName: item.item_name,
+                  totalPrice: order.total_price,
+                  paymentId: response.razorpay_payment_id,
+                  days: order.days,
+                  startDate: fd.start_date,
+                  endDate: fd.end_date,
+                  ownerName: item.owner_name
+                });
+                renderView(state.view);
+              } catch (verifyErr) {
+                showBanner("Payment verification failed: " + verifyErr.message, "err");
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = originalText;
+              }
+            },
+            prefill: {
+              name: state.user.name,
+              email: state.user.email,
+              contact: state.user.phone || ""
+            },
+            notes: {
+              item_id: item.item_id,
+              borrower_id: state.user.user_id
+            },
+            theme: {
+              color: "#2563eb"
+            },
+            modal: {
+              ondismiss: function () {
+                showBanner("Payment cancelled.", "err");
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = originalText;
+              }
+            }
+          };
+
+          const rzp = new window.Razorpay(options);
+          rzp.on("payment.failed", function (response) {
+            showBanner("Payment failed: " + (response.error.description || "Transaction declined."), "err");
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = originalText;
+          });
+          rzp.open();
+        } catch (err) {
+          showBanner(err.message, "err");
+          submitBtn.disabled = false;
+          submitBtn.innerHTML = originalText;
+        }
+      } else {
+        // Free item
+        try {
+          await api("/borrow-requests", {
+            method: "POST",
+            body: { item_id: item.item_id, borrower_id: state.user.user_id, ...fd }
+          });
+          closeModal();
+          showBanner("Borrow request sent to owner.", "ok");
+          renderView(state.view);
+        } catch (err) {
+          showBanner(err.message, "err");
+          submitBtn.disabled = false;
+          submitBtn.innerHTML = originalText;
+        }
+      }
+    });
+  }
+
+  function openPaymentSuccessModal(info) {
+    openModal(`
+      <div class="payment-success-card">
+        <div class="payment-success-icon">✓</div>
+        <h2>Booking & Payment Confirmed!</h2>
+        <p class="modal-sub">Your payment has been processed securely via Razorpay.</p>
+
+        <div class="payment-details-box">
+          <div class="price-row"><span>Item Booked:</span> <strong>${escapeHtml(info.itemName)}</strong></div>
+          <div class="price-row"><span>Owner:</span> <strong>${escapeHtml(info.ownerName || "Student")}</strong></div>
+          <div class="price-row"><span>Duration:</span> <strong>${info.days} day${info.days > 1 ? "s" : ""} (${fmtDate(info.startDate)} → ${fmtDate(info.endDate)})</strong></div>
+          <div class="price-row"><span>Amount Paid:</span> <strong style="color:#16a34a; font-size:15px;">₹${Number(info.totalPrice).toFixed(2)}</strong></div>
+          <div class="price-row"><span>Razorpay Payment ID:</span> <code style="font-size:11px; background:#e2e8f0; padding:2px 6px; border-radius:4px;">${escapeHtml(info.paymentId)}</code></div>
+        </div>
+
+        <div class="payment-notice-pill">
+          🔒 <strong>Product Availability Locked:</strong> This item is reserved for you and will remain <strong>unavailable</strong> to other students for ${info.days} days until <strong>${fmtDate(info.endDate)}</strong>.
+        </div>
+
+        <div class="modal-actions" style="justify-content:center; gap:12px; margin-top:16px;">
+          <button type="button" class="btn btn-primary" id="btn-done-payment">Got it, View Transactions</button>
+        </div>
+      </div>
+    `);
+
+    $("#btn-done-payment").addEventListener("click", () => {
+      closeModal();
+      renderView("transactions");
     });
   }
 
@@ -604,6 +863,19 @@
 
   function myItemCard(item) {
     const imgUrl = item.image_url || 'https://images.unsplash.com/photo-1581291518633-83b4ebd1d83e?w=500&auto=format&fit=crop&q=80';
+    const isPaid = item.borrowing_type === "paid";
+    const dailyPrice = Number(item.price_per_day || 0);
+
+    const priceBadge = isPaid
+      ? `<span class="badge badge-paid">Paid (₹${dailyPrice}/day)</span>`
+      : `<span class="badge badge-free">Free</span>`;
+
+    const availBadge = item.availability
+      ? `<span class="badge badge-available">Available</span>`
+      : (item.unavailable_until
+          ? `<span class="badge badge-unavailable" title="Booked until ${fmtDate(item.unavailable_until)}">Booked until ${fmtDate(item.unavailable_until)}</span>`
+          : `<span class="badge badge-unavailable">Unavailable</span>`);
+
     return `
     <div class="item-card">
       <div class="item-card__img-wrap">
@@ -614,7 +886,7 @@
         <h4>${escapeHtml(item.item_name)}</h4>
         <p class="meta">${escapeHtml(item.location || "Campus")}</p>
         <p class="desc">${escapeHtml(item.description || "No description provided.")}</p>
-        <p class="meta">${badge(item.availability ? "available" : "unavailable")} ${badge(item.borrowing_type)}</p>
+        <p class="meta">${availBadge} ${priceBadge}</p>
         <div class="item-card__foot">
           <button class="btn btn-ghost btn-sm btn-edit-item" data-id="${item.item_id}">Edit</button>
           <button class="btn btn-danger btn-sm btn-delete-item" data-id="${item.item_id}">Delete</button>
@@ -662,10 +934,14 @@
       </div>
       <div class="field-row">
         <div class="field"><label>Borrowing type</label>
-          <select name="borrowing_type">
+          <select name="borrowing_type" id="item-borrowing-type">
             <option value="free" ${item?.borrowing_type === "free" ? "selected" : ""}>Free</option>
-            <option value="paid" ${item?.borrowing_type === "paid" ? "selected" : ""}>Paid</option>
+            <option value="paid" ${item?.borrowing_type === "paid" ? "selected" : ""}>Paid (Rental)</option>
           </select>
+        </div>
+        <div class="field" id="price-per-day-field" style="${item?.borrowing_type === 'paid' ? '' : 'display:none;'}">
+          <label>Daily Price (₹ / day)</label>
+          <input type="number" name="price_per_day" id="item-price-per-day" min="1" step="1" value="${item ? (Number(item.price_per_day) || 50) : 50}" placeholder="50" />
         </div>
         <div class="field"><label>Max borrow period (days)</label><input type="number" name="max_borrow_period" min="1" value="${item ? item.max_borrow_period : 3}" /></div>
       </div>
@@ -683,6 +959,14 @@
     const previewContainer = $("#image-preview-container");
     const previewImg = $("#image-preview");
     const uploadStatus = $("#upload-status");
+    const bTypeSelect = $("#item-borrowing-type");
+    const pField = $("#price-per-day-field");
+
+    if (bTypeSelect && pField) {
+      bTypeSelect.addEventListener("change", () => {
+        pField.style.display = bTypeSelect.value === "paid" ? "block" : "none";
+      });
+    }
 
     $("#btn-trigger-upload").addEventListener("click", () => fileInput.click());
 
@@ -723,6 +1007,7 @@
       e.preventDefault();
       const fd = new FormData(e.target);
       const body = Object.fromEntries(fd);
+      body.price_per_day = body.borrowing_type === "paid" ? (Number(body.price_per_day) || 0) : 0;
       if (isEdit) body.availability = fd.get("availability") === "on";
       try {
         if (isEdit) {
@@ -767,14 +1052,19 @@
     return `
     <table class="ledger">
       <thead><tr>
-        <th>Item</th><th>${showOwnerActions ? "Borrower" : "Owner"}</th><th>Dates</th><th>Status</th>${showOwnerActions ? "<th>Action</th>" : ""}
+        <th>Item</th><th>${showOwnerActions ? "Borrower" : "Owner"}</th><th>Dates</th><th>Fee / Payment</th><th>Status</th>${showOwnerActions ? "<th>Action</th>" : ""}
       </tr></thead>
       <tbody>
         ${rows.map((r) => `
           <tr>
-            <td>${escapeHtml(r.item_name)}</td>
+            <td><strong>${escapeHtml(r.item_name)}</strong></td>
             <td>${escapeHtml(showOwnerActions ? r.borrower_name : r.owner_name)}</td>
             <td>${fmtDate(r.start_date)} → ${fmtDate(r.end_date)}</td>
+            <td>
+              ${Number(r.total_price) > 0
+                ? `<span class="badge badge-paid">₹${Number(r.total_price).toFixed(2)} (${r.payment_status === "paid" ? "Paid" : "Unpaid"})</span>`
+                : `<span class="badge badge-free">Free</span>`}
+            </td>
             <td>${badge(r.status)}</td>
             ${showOwnerActions ? `
               <td class="actions">
@@ -806,15 +1096,20 @@
     const [transactions] = await Promise.all([api("/transactions"), ensureUsersMap()]);
     content.innerHTML = transactions.length ? `
     <table class="ledger">
-      <thead><tr><th>Item</th><th>Borrower</th><th>Borrowed</th><th>Due</th><th>Returned</th><th>Status</th><th>Action</th></tr></thead>
+      <thead><tr><th>Item</th><th>Borrower</th><th>Borrowed</th><th>Due</th><th>Returned</th><th>Amount</th><th>Status</th><th>Action</th></tr></thead>
       <tbody>
         ${transactions.map((t) => `
           <tr>
-            <td>${escapeHtml(t.item_name)}</td>
+            <td><strong>${escapeHtml(t.item_name)}</strong></td>
             <td>${escapeHtml(state.usersById[t.borrower_id]?.name || "—")}</td>
             <td>${fmtDate(t.borrowed_date)}</td>
             <td>${fmtDate(t.due_date)}</td>
             <td>${fmtDate(t.returned_date)}</td>
+            <td>
+              ${Number(t.amount_paid) > 0
+                ? `<span class="badge badge-paid">₹${Number(t.amount_paid).toFixed(2)}</span>`
+                : `<span class="badge badge-free">Free</span>`}
+            </td>
             <td>${badge(t.status)}</td>
             <td>${t.status === "borrowed" ? `<button class="btn btn-olive btn-sm btn-return" data-id="${t.transaction_id}">Mark returned</button>` : "—"}</td>
           </tr>

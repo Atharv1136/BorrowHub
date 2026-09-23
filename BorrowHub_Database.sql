@@ -41,6 +41,7 @@ CREATE TABLE Items (
     item_condition      VARCHAR(20)  DEFAULT 'Good',
     availability        BOOLEAN DEFAULT TRUE,
     borrowing_type      ENUM('free','paid') DEFAULT 'free',
+    price_per_day       DECIMAL(10,2) NOT NULL DEFAULT 0.00,
     max_borrow_period   INT DEFAULT 3,          -- in days
     location            VARCHAR(100),
     image_url           VARCHAR(500) DEFAULT NULL,
@@ -50,15 +51,19 @@ CREATE TABLE Items (
 );
 
 CREATE TABLE Borrow_Requests (
-    request_id      INT AUTO_INCREMENT PRIMARY KEY,
-    item_id         INT NOT NULL,
-    borrower_id     INT NOT NULL,
-    start_date      DATE NOT NULL,
-    end_date        DATE NOT NULL,
-    reason          TEXT,
-    message         TEXT,
-    status          ENUM('requested','approved','rejected') DEFAULT 'requested',
-    created_at      DATETIME DEFAULT CURRENT_TIMESTAMP,
+    request_id          INT AUTO_INCREMENT PRIMARY KEY,
+    item_id             INT NOT NULL,
+    borrower_id         INT NOT NULL,
+    start_date          DATE NOT NULL,
+    end_date            DATE NOT NULL,
+    reason              TEXT,
+    message             TEXT,
+    total_price         DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+    payment_id          VARCHAR(100) DEFAULT NULL,
+    payment_status      VARCHAR(40) NOT NULL DEFAULT 'free',
+    razorpay_order_id   VARCHAR(100) DEFAULT NULL,
+    status              ENUM('requested','approved','rejected') DEFAULT 'requested',
+    created_at          DATETIME DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT fk_br_item     FOREIGN KEY (item_id)     REFERENCES Items(item_id)   ON DELETE CASCADE,
     CONSTRAINT fk_br_borrower FOREIGN KEY (borrower_id) REFERENCES Users(user_id)   ON DELETE CASCADE,
     CONSTRAINT chk_br_dates CHECK (end_date >= start_date)
@@ -70,6 +75,8 @@ CREATE TABLE Transactions (
     borrowed_date   DATE NOT NULL,
     due_date        DATE NOT NULL,
     returned_date   DATE NULL,
+    amount_paid     DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+    payment_id      VARCHAR(100) DEFAULT NULL,
     status          ENUM('borrowed','returned','overdue') DEFAULT 'borrowed',
     CONSTRAINT fk_tx_request FOREIGN KEY (request_id) REFERENCES Borrow_Requests(request_id) ON DELETE CASCADE
 );

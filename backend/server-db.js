@@ -6,7 +6,20 @@ const fs = require("fs");
 const mysql = require("mysql2/promise");
 const bcrypt = require("bcryptjs");
 const multer = require("multer");
+const crypto = require("crypto");
+const Razorpay = require("razorpay");
 
+const RAZORPAY_KEY_ID = process.env.RAZORPAY_KEY_ID || "rzp_test_TfNQR7ZbZUR2Dz";
+const RAZORPAY_KEY_SECRET = process.env.RAZORPAY_KEY_SECRET || "uYTejmA6cv0V0TanurBULhSz";
+let razorpayInstance = null;
+try {
+    razorpayInstance = new Razorpay({
+        key_id: RAZORPAY_KEY_ID,
+        key_secret: RAZORPAY_KEY_SECRET
+    });
+} catch (e) {
+    console.warn("[Razorpay Init Warning]:", e.message);
+}
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -160,9 +173,29 @@ async function initialiseDatabase() {
         const [iCols] = await pool.query("SHOW COLUMNS FROM items LIKE 'image_url'");
         if (!iCols.length) await pool.query("ALTER TABLE items ADD COLUMN image_url VARCHAR(500) DEFAULT NULL");
     } catch (e) { console.warn("[DB Column Check]", e.message); }
+    try {
+        const [pCols] = await pool.query("SHOW COLUMNS FROM items LIKE 'price_per_day'");
+        if (!pCols.length) await pool.query("ALTER TABLE items ADD COLUMN price_per_day DECIMAL(10,2) NOT NULL DEFAULT 0.00 AFTER borrowing_type");
+    } catch (e) { console.warn("[DB Column Check - price_per_day]", e.message); }
     await pool.query("CREATE TABLE IF NOT EXISTS writing_requests (writing_request_id INT AUTO_INCREMENT PRIMARY KEY, student_id INT NOT NULL, title VARCHAR(180) NOT NULL, subject VARCHAR(120), type VARCHAR(50), description TEXT, length_pages INT, budget DECIMAL(10,2), deadline DATE, status VARCHAR(30) DEFAULT 'open', created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY (student_id) REFERENCES users(user_id))");
     await pool.query("CREATE TABLE IF NOT EXISTS borrow_requests (request_id INT AUTO_INCREMENT PRIMARY KEY, item_id INT NOT NULL, borrower_id INT NOT NULL, start_date DATE NOT NULL, end_date DATE NOT NULL, reason VARCHAR(255), message TEXT, status VARCHAR(30) DEFAULT 'requested', created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY (item_id) REFERENCES items(item_id), FOREIGN KEY (borrower_id) REFERENCES users(user_id))");
+    try {
+        const [brCols] = await pool.query("SHOW COLUMNS FROM borrow_requests LIKE 'total_price'");
+        if (!brCols.length) {
+            await pool.query("ALTER TABLE borrow_requests ADD COLUMN total_price DECIMAL(10,2) NOT NULL DEFAULT 0.00");
+            await pool.query("ALTER TABLE borrow_requests ADD COLUMN payment_id VARCHAR(100) DEFAULT NULL");
+            await pool.query("ALTER TABLE borrow_requests ADD COLUMN payment_status VARCHAR(40) NOT NULL DEFAULT 'free'");
+            await pool.query("ALTER TABLE borrow_requests ADD COLUMN razorpay_order_id VARCHAR(100) DEFAULT NULL");
+        }
+    } catch (e) { console.warn("[DB Column Check - borrow_requests payment cols]", e.message); }
     await pool.query("CREATE TABLE IF NOT EXISTS transactions (transaction_id INT AUTO_INCREMENT PRIMARY KEY, request_id INT NOT NULL UNIQUE, borrowed_date DATE NOT NULL, due_date DATE NOT NULL, returned_date DATE NULL, status VARCHAR(30) DEFAULT 'borrowed')");
+    try {
+        const [txCols] = await pool.query("SHOW COLUMNS FROM transactions LIKE 'amount_paid'");
+        if (!txCols.length) {
+            await pool.query("ALTER TABLE transactions ADD COLUMN amount_paid DECIMAL(10,2) NOT NULL DEFAULT 0.00");
+            await pool.query("ALTER TABLE transactions ADD COLUMN payment_id VARCHAR(100) DEFAULT NULL");
+        }
+    } catch (e) { console.warn("[DB Column Check - transactions amount cols]", e.message); }
     await pool.query("CREATE TABLE IF NOT EXISTS need_posts (need_id INT AUTO_INCREMENT PRIMARY KEY, user_id INT NOT NULL, item_name VARCHAR(160) NOT NULL, required_from DATE, required_until DATE, reason VARCHAR(255), urgency VARCHAR(20), created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY (user_id) REFERENCES users(user_id))");
     await pool.query("CREATE TABLE IF NOT EXISTS writing_offers (offer_id INT AUTO_INCREMENT PRIMARY KEY, writing_request_id INT NOT NULL, writer_id INT NOT NULL, proposed_price DECIMAL(10,2), delivery_date DATE, message TEXT, status VARCHAR(30) DEFAULT 'pending', FOREIGN KEY (writing_request_id) REFERENCES writing_requests(writing_request_id), FOREIGN KEY (writer_id) REFERENCES users(user_id))");
     await pool.query("CREATE TABLE IF NOT EXISTS favorites (user_id INT NOT NULL, item_id INT NOT NULL, PRIMARY KEY (user_id, item_id), FOREIGN KEY (user_id) REFERENCES users(user_id), FOREIGN KEY (item_id) REFERENCES items(item_id))");
@@ -171,12 +204,20 @@ async function initialiseDatabase() {
 }
 
 function safeUser(row) { const { password, password_hash, ...safe } = row; return safe; }
-function itemView(row) { return { ...row, availability: Boolean(row.availability) }; }
+function itemView(row) { 
+    const isBooked = Boolean(row.unavailable_until);
+    return { 
+        ...row, 
+        price_per_day: Number(row.price_per_day || 0),
+        availability: Boolean(row.availability) && !isBooked,
+        unavailable_until: row.unavailable_until ? row.unavailable_until : null
+    }; 
+}
 
 app.use(cors());
 app.use(express.json());
 app.use((req, _res, next) => {
-    const publicApiRoutes = ["/health", "/auth", "/categories", "/users", "/items", "/colleges", "/borrow-requests", "/transactions", "/need-posts", "/writing-requests", "/writer-profiles", "/writing-orders", "/favorites", "/notifications"];
+    const publicApiRoutes = ["/health", "/auth", "/categories", "/users", "/items", "/colleges", "/borrow-requests", "/transactions", "/need-posts", "/writing-requests", "/writer-profiles", "/writing-orders", "/favorites", "/notifications", "/payment"];
     const isPageRoute = req.path === "/auth" || req.path === "/dashboard";
     if (!isPageRoute && !req.path.startsWith("/api") && publicApiRoutes.some((route) => req.path === route || req.path.startsWith(route + "/"))) req.url = "/api" + req.url;
     next();
@@ -185,6 +226,9 @@ app.use((req, _res, next) => {
 const apiRoutes = [
     ["GET", "/api/health"],
     ["GET", "/api/colleges"],
+    ["GET", "/api/payment/key"],
+    ["POST", "/api/payment/create-order"],
+    ["POST", "/api/payment/verify"],
     ["POST", "/api/auth/register"], ["POST", "/api/auth/login"], ["PATCH", "/api/auth/password"],
     ["GET", "/api/categories"], ["GET", "/api/users"], ["GET", "/api/users/:id"], ["PUT", "/api/users/:id"], ["PATCH", "/api/users/:id/password"],
     ["GET", "/api/items"], ["POST", "/api/items"], ["PUT", "/api/items/:id"], ["DELETE", "/api/items/:id"],
@@ -283,6 +327,21 @@ app.patch("/api/users/:id/password", async (req, res, next) => { try { const { n
 
 app.get("/api/items", async (req, res, next) => {
     try {
+        // Auto-restore availability for items whose bookings have expired or were returned
+        await pool.query(`
+            UPDATE items i
+            SET availability = TRUE
+            WHERE availability = FALSE
+            AND NOT EXISTS (
+                SELECT 1 FROM transactions t
+                JOIN borrow_requests br ON br.request_id = t.request_id
+                WHERE br.item_id = i.item_id
+                AND t.status = 'borrowed'
+                AND t.returned_date IS NULL
+                AND t.due_date >= CURDATE()
+            )
+        `).catch(() => {});
+
         const where = [];
         const values = [];
         if (req.query.available === "true") where.push("i.availability = TRUE");
@@ -291,7 +350,17 @@ app.get("/api/items", async (req, res, next) => {
         // College isolation: only show items from same college if college_name passed
         if (req.query.college_name) { where.push("u.college_name = ?"); values.push(req.query.college_name); }
         const whereClause = where.length ? "WHERE " + where.join(" AND ") : "";
-        const [rows] = await pool.query("SELECT i.*, c.category_name, u.name owner_name, u.college_name owner_college FROM items i JOIN categories c ON c.category_id=i.category_id JOIN users u ON u.user_id=i.owner_id " + whereClause + " ORDER BY i.created_at DESC", values);
+        const [rows] = await pool.query(
+            `SELECT i.*, c.category_name, u.name owner_name, u.college_name owner_college,
+             (SELECT MAX(t.due_date) FROM transactions t 
+              JOIN borrow_requests br ON br.request_id = t.request_id 
+              WHERE br.item_id = i.item_id AND t.status = 'borrowed' AND t.returned_date IS NULL AND t.due_date >= CURDATE()
+             ) AS unavailable_until
+             FROM items i 
+             JOIN categories c ON c.category_id=i.category_id 
+             JOIN users u ON u.user_id=i.owner_id ` + whereClause + " ORDER BY i.created_at DESC", 
+            values
+        );
         res.json(rows.map(itemView));
     } catch (e) { next(e); }
 });
@@ -303,17 +372,18 @@ app.post("/api/upload", upload.single("image"), (req, res) => {
 
 app.post("/api/items", async (req, res, next) => {
     try {
+        const price_per_day = req.body.borrowing_type === "paid" ? (Number(req.body.price_per_day) || 0) : 0;
         const [result] = await pool.query(
-            "INSERT INTO items (owner_id,category_id,item_name,description,item_condition,borrowing_type,max_borrow_period,location,image_url) VALUES (?,?,?,?,?,?,?,?,?)",
-            [req.body.owner_id, req.body.category_id, req.body.item_name, req.body.description || "", req.body.item_condition || "Good", req.body.borrowing_type || "free", req.body.max_borrow_period || 3, req.body.location || "", req.body.image_url || null]
+            "INSERT INTO items (owner_id,category_id,item_name,description,item_condition,borrowing_type,price_per_day,max_borrow_period,location,image_url) VALUES (?,?,?,?,?,?,?,?,?,?)",
+            [req.body.owner_id, req.body.category_id, req.body.item_name, req.body.description || "", req.body.item_condition || "Good", req.body.borrowing_type || "free", price_per_day, req.body.max_borrow_period || 3, req.body.location || "", req.body.image_url || null]
         );
-        res.status(201).json({ item_id: result.insertId, ...req.body, availability: true });
+        res.status(201).json({ item_id: result.insertId, ...req.body, price_per_day, availability: true });
     } catch (e) { next(e); }
 });
 
 app.put("/api/items/:id", async (req, res, next) => {
     try {
-        const keys = ["item_name", "description", "item_condition", "borrowing_type", "max_borrow_period", "location", "availability", "image_url"];
+        const keys = ["item_name", "description", "item_condition", "borrowing_type", "price_per_day", "max_borrow_period", "location", "availability", "image_url"];
         const fields = keys.filter((key) => req.body[key] !== undefined);
         await pool.query("UPDATE items SET " + fields.map((key) => key + " = ?").join(", ") + " WHERE item_id = ?", [...fields.map((key) => req.body[key]), req.params.id]);
         res.json({ ok: true });
@@ -321,32 +391,204 @@ app.put("/api/items/:id", async (req, res, next) => {
 });
 app.delete("/api/items/:id", async (req, res, next) => { try { await pool.query("DELETE FROM items WHERE item_id = ?", [req.params.id]); res.json({ ok: true }); } catch (e) { next(e); } });
 
-app.get("/api/writing-requests", async (req, res, next) => { try { const values = []; const filter = req.query.status ? "WHERE wr.status = ?" : ""; if (req.query.status) values.push(req.query.status); const [rows] = await pool.query("SELECT wr.*, u.name student_name FROM writing_requests wr JOIN users u ON u.user_id=wr.student_id " + filter + " ORDER BY wr.created_at DESC", values); res.json(rows); } catch (e) { next(e); } });
-app.post("/api/writing-requests", async (req, res, next) => { try { const [result] = await pool.query("INSERT INTO writing_requests (student_id,title,subject,type,description,length_pages,budget,deadline) VALUES (?,?,?,?,?,?,?,?)", [req.body.student_id, req.body.title, req.body.subject || "", req.body.type || "notes", req.body.description || "", req.body.length_pages || null, req.body.budget || null, req.body.deadline]); res.status(201).json({ writing_request_id: result.insertId, ...req.body, status: "open" }); } catch (e) { next(e); } });
-app.get("/api/writer-profiles", async (_req, res, next) => { try { const [rows] = await pool.query("SELECT user_id,name,department subjects FROM users WHERE role IN ('writer','both')"); res.json(rows.map((row) => ({ ...row, bio: "", price_per_page: 0, avg_rating: null, completed_orders: 0, is_verified: false }))); } catch (e) { next(e); } });
+// Razorpay Payment Endpoints
+app.get("/api/payment/key", (_req, res) => {
+    res.json({ key_id: RAZORPAY_KEY_ID });
+});
 
-app.get("/api/borrow-requests", async (req, res, next) => {
+app.post("/api/payment/create-order", async (req, res, next) => {
     try {
-        const where = [];
-        const values = [];
-        if (req.query.borrower_id) { where.push("br.borrower_id = ?"); values.push(req.query.borrower_id); }
-        if (req.query.owner_id) { where.push("i.owner_id = ?"); values.push(req.query.owner_id); }
-        const whereClause = where.length ? "WHERE " + where.join(" AND ") : "";
-        const [rows] = await pool.query("SELECT br.*, i.item_name, owner.name owner_name, borrower.name borrower_name FROM borrow_requests br JOIN items i ON i.item_id=br.item_id JOIN users owner ON owner.user_id=i.owner_id JOIN users borrower ON borrower.user_id=br.borrower_id " + whereClause + " ORDER BY br.created_at DESC", values);
-        res.json(rows);
-    } catch (e) { next(e); }
+        const { item_id, borrower_id, start_date, end_date, reason, message } = req.body;
+        if (!item_id || !borrower_id || !start_date || !end_date) {
+            return res.status(400).json({ message: "Missing required booking details (item, borrower, dates)." });
+        }
+
+        const [items] = await pool.query(
+            "SELECT i.*, u.college_name owner_college, u.name owner_name FROM items i JOIN users u ON u.user_id = i.owner_id WHERE i.item_id = ?",
+            [item_id]
+        );
+        if (!items.length) return res.status(404).json({ message: "Item not found." });
+        const item = items[0];
+
+        // College restriction
+        const [borrowers] = await pool.query("SELECT user_id, name, email, phone, college_name FROM users WHERE user_id = ?", [borrower_id]);
+        if (!borrowers.length) return res.status(404).json({ message: "Borrower not found." });
+        const borrower = borrowers[0];
+
+        if (borrower.college_name !== item.owner_college) {
+            return res.status(403).json({ message: `Cross-college borrowing not permitted. Item is at ${item.owner_college}, your college is ${borrower.college_name}.` });
+        }
+
+        // Check if item is currently booked
+        const [activeTx] = await pool.query(
+            "SELECT t.* FROM transactions t JOIN borrow_requests br ON br.request_id = t.request_id WHERE br.item_id = ? AND t.status = 'borrowed' AND t.returned_date IS NULL AND t.due_date >= CURDATE()",
+            [item_id]
+        );
+        if (activeTx.length || !item.availability) {
+            return res.status(400).json({ message: "This item is currently booked and unavailable." });
+        }
+
+        // Date calculation
+        const start = new Date(start_date);
+        const end = new Date(end_date);
+        const diffMs = end.getTime() - start.getTime();
+        if (diffMs < 0) return res.status(400).json({ message: "End date cannot be earlier than start date." });
+        const days = Math.max(1, Math.round(diffMs / (1000 * 60 * 60 * 24)) + 1);
+
+        const pricePerDay = Number(item.price_per_day) || 0;
+        const totalPrice = Math.round(days * pricePerDay * 100) / 100;
+
+        if (item.borrowing_type !== "paid" || totalPrice <= 0) {
+            return res.json({ is_free: true, total_price: 0, days, item_name: item.item_name });
+        }
+
+        // Amount in paise (minimum 100 paise = 1 INR)
+        const amountInPaise = Math.max(100, Math.round(totalPrice * 100));
+        const receipt = `rcpt_${item_id}_${Date.now().toString().slice(-8)}`;
+
+        const order = await razorpayInstance.orders.create({
+            amount: amountInPaise,
+            currency: "INR",
+            receipt,
+            notes: {
+                item_id: String(item_id),
+                item_name: item.item_name.substring(0, 30),
+                borrower_id: String(borrower_id),
+                borrower_name: borrower.name,
+                days: String(days),
+                start_date,
+                end_date
+            }
+        });
+
+        res.json({
+            is_free: false,
+            order_id: order.id,
+            amount: order.amount,
+            currency: order.currency,
+            total_price: totalPrice,
+            price_per_day: pricePerDay,
+            days,
+            item_name: item.item_name,
+            key_id: RAZORPAY_KEY_ID,
+            borrower: {
+                name: borrower.name,
+                email: borrower.email,
+                phone: borrower.phone
+            }
+        });
+    } catch (e) {
+        console.error("[Razorpay Create Order Error]:", e);
+        next(e);
+    }
+});
+
+app.post("/api/payment/verify", async (req, res, next) => {
+    try {
+        const {
+            razorpay_order_id,
+            razorpay_payment_id,
+            razorpay_signature,
+            item_id,
+            borrower_id,
+            start_date,
+            end_date,
+            reason,
+            message,
+            total_price,
+            days
+        } = req.body;
+
+        if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature) {
+            return res.status(400).json({ message: "Missing Razorpay verification credentials." });
+        }
+
+        // Verify Razorpay HMAC-SHA256 signature
+        const hmac = crypto.createHmac("sha256", RAZORPAY_KEY_SECRET);
+        hmac.update(`${razorpay_order_id}|${razorpay_payment_id}`);
+        const generatedSignature = hmac.digest("hex");
+
+        if (generatedSignature !== razorpay_signature) {
+            return res.status(400).json({ message: "Payment verification failed. Invalid signature." });
+        }
+
+        // 1. Create borrow request with status 'approved', payment_status 'paid'
+        const [brResult] = await pool.query(
+            "INSERT INTO borrow_requests (item_id, borrower_id, start_date, end_date, reason, message, status, total_price, payment_id, payment_status, razorpay_order_id) VALUES (?,?,?,?,?,?,'approved',?,?, 'paid', ?)",
+            [item_id, borrower_id, start_date, end_date, reason || "Paid Borrowing", message || "", total_price, razorpay_payment_id, razorpay_order_id]
+        );
+        const requestId = brResult.insertId;
+
+        // 2. Mark product as NOT AVAILABLE for those days
+        await pool.query("UPDATE items SET availability = FALSE WHERE item_id = ?", [item_id]);
+
+        // 3. Insert transaction
+        const [txResult] = await pool.query(
+            "INSERT INTO transactions (request_id, borrowed_date, due_date, status, amount_paid, payment_id) VALUES (?, ?, ?, 'borrowed', ?, ?)",
+            [requestId, start_date, end_date, total_price, razorpay_payment_id]
+        );
+
+        // 4. Create notifications
+        const [itemData] = await pool.query("SELECT owner_id, item_name FROM items WHERE item_id = ?", [item_id]);
+        const [borrowerData] = await pool.query("SELECT name FROM users WHERE user_id = ?", [borrower_id]);
+        const itemName = itemData[0]?.item_name || "Item";
+        const borrowerName = borrowerData[0]?.name || "Student";
+
+        if (itemData.length) {
+            await pool.query("INSERT INTO notifications (user_id, message) VALUES (?, ?)", [
+                itemData[0].owner_id,
+                `💰 Payment received! ${borrowerName} paid ₹${total_price} to borrow '${itemName}' for ${days || "several"} days (due: ${end_date}).`
+            ]);
+        }
+        await pool.query("INSERT INTO notifications (user_id, message) VALUES (?, ?)", [
+            borrower_id,
+            `🎉 Payment successful! You paid ₹${total_price} via Razorpay (ID: ${razorpay_payment_id}) for '${itemName}'. Return by ${end_date}.`
+        ]);
+
+        res.json({
+            ok: true,
+            message: "Payment verified successfully! Item booked.",
+            request_id: requestId,
+            transaction_id: txResult.insertId,
+            payment_id: razorpay_payment_id,
+            total_price,
+            start_date,
+            end_date
+        });
+    } catch (e) {
+        console.error("[Razorpay Verify Error]:", e);
+        next(e);
+    }
 });
 
 app.post("/api/borrow-requests", async (req, res, next) => {
     try {
         // Same-college check: borrower and item owner must be from the same college
         const [borrowerRows] = await pool.query("SELECT college_name FROM users WHERE user_id = ?", [req.body.borrower_id]);
-        const [itemRows] = await pool.query("SELECT i.item_id, u.college_name AS owner_college FROM items i JOIN users u ON u.user_id = i.owner_id WHERE i.item_id = ?", [req.body.item_id]);
+        const [itemRows] = await pool.query("SELECT i.item_id, i.availability, i.borrowing_type, i.price_per_day, u.college_name AS owner_college FROM items i JOIN users u ON u.user_id = i.owner_id WHERE i.item_id = ?", [req.body.item_id]);
         if (borrowerRows.length && itemRows.length && borrowerRows[0].college_name !== itemRows[0].owner_college) {
             return res.status(403).json({ message: "Cross-college borrowing is not allowed. This item belongs to a student from " + itemRows[0].owner_college + ". You are from " + borrowerRows[0].college_name + "." });
         }
-        const [result] = await pool.query("INSERT INTO borrow_requests (item_id,borrower_id,start_date,end_date,reason,message) VALUES (?,?,?,?,?,?)", [req.body.item_id, req.body.borrower_id, req.body.start_date, req.body.end_date, req.body.reason || "", req.body.message || ""]);
-        res.status(201).json({ request_id: result.insertId, ...req.body, status: "requested" });
+        if (itemRows.length && !itemRows[0].availability) {
+            return res.status(400).json({ message: "This item is currently unavailable." });
+        }
+
+        // Calculate days and total_price
+        let totalPrice = 0;
+        let paymentStatus = "free";
+        if (itemRows.length && itemRows[0].borrowing_type === "paid") {
+            const start = new Date(req.body.start_date);
+            const end = new Date(req.body.end_date);
+            const days = Math.max(1, Math.round((end - start) / (1000 * 60 * 60 * 24)) + 1);
+            totalPrice = Math.round(days * (Number(itemRows[0].price_per_day) || 0) * 100) / 100;
+            paymentStatus = "unpaid";
+        }
+
+        const [result] = await pool.query(
+            "INSERT INTO borrow_requests (item_id,borrower_id,start_date,end_date,reason,message,total_price,payment_status) VALUES (?,?,?,?,?,?,?,?)",
+            [req.body.item_id, req.body.borrower_id, req.body.start_date, req.body.end_date, req.body.reason || "", req.body.message || "", totalPrice, paymentStatus]
+        );
+        res.status(201).json({ request_id: result.insertId, ...req.body, total_price: totalPrice, payment_status: paymentStatus, status: "requested" });
     } catch (e) { next(e); }
 });
 

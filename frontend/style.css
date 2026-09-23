@@ -739,6 +739,127 @@ textarea {
     border-color: #c6d0e8;
 }
 
+.badge-paid {
+    background: #eff6ff;
+    color: #1d4ed8;
+    border-color: #bfdbfe;
+    font-weight: 700;
+}
+
+.badge-free {
+    background: #ecfdf5;
+    color: #047857;
+    border-color: #a7f3d0;
+    font-weight: 700;
+}
+
+/* Pricing Breakdown & Razorpay UI */
+.pricing-summary-card {
+    background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+    border: 1.5px solid #e2e8f0;
+    border-radius: 12px;
+    padding: 16px 18px;
+    margin-bottom: 20px;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.03);
+}
+
+.pricing-summary-card.free {
+    background: #f0fdf4;
+    border-color: #bbf7d0;
+}
+
+.pricing-badge-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.badge-razorpay-secure {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 11px;
+    font-weight: 600;
+    color: #0284c7;
+    background: #e0f2fe;
+    padding: 3px 8px;
+    border-radius: 6px;
+    border: 1px solid #bae6fd;
+}
+
+.pricing-breakdown {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    font-size: 13.5px;
+    color: #334155;
+}
+
+.price-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.price-divider {
+    height: 1px;
+    background: #cbd5e1;
+    margin: 4px 0;
+}
+
+.price-row.total {
+    font-size: 15px;
+    color: #0f172a;
+}
+
+/* Payment Success Confirmation Modal */
+.payment-success-card {
+    text-align: center;
+    padding: 10px 6px;
+}
+
+.payment-success-icon {
+    width: 64px;
+    height: 64px;
+    border-radius: 50%;
+    background: #dcfce7;
+    color: #16a34a;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 32px;
+    margin-bottom: 14px;
+    box-shadow: 0 0 0 8px #f0fdf4;
+}
+
+.payment-details-box {
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    padding: 14px 16px;
+    margin: 18px 0;
+    text-align: left;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    font-size: 13px;
+}
+
+.payment-notice-pill {
+    background: #eff6ff;
+    border: 1px solid #bfdbfe;
+    color: #1e40af;
+    border-radius: 8px;
+    padding: 10px 12px;
+    font-size: 12.5px;
+    margin: 14px 0;
+    text-align: left;
+    line-height: 1.45;
+}
+
 /* ---------- Tables (ledger style) ---------- */
 
 .ledger {
