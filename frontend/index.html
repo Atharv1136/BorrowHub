@@ -28,7 +28,7 @@
                 <span class="site-logo-text" style="font-size:22px; font-weight:800; color:#0f172a;">Borrow<span style="color:#2563eb;">Hub</span></span>
             </a>
 
-            <ul class="nav-menu-links">
+            <ul class="nav-menu-links" id="landing-nav-links">
                 <li><a href="#features">Features</a></li>
                 <li><a href="#how-it-works">How It Works</a></li>
                 <li><a href="#categories">Categories</a></li>
@@ -39,6 +39,9 @@
             <div class="nav-auth-actions">
                 <a class="btn-nav-ghost" href="/frontend/auth.html?mode=login">Sign in</a>
                 <a class="btn-nav-primary" href="/frontend/auth.html?mode=signup">Sign up</a>
+                <button class="nav-mobile-toggle" id="btn-landing-toggle" aria-label="Toggle navigation menu">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
+                </button>
             </div>
         </div>
     </header>
@@ -402,6 +405,21 @@
             <p>Made with pure HTML & CSS</p>
         </div>
     </footer>
+
+    <script>
+        const navToggle = document.getElementById("btn-landing-toggle");
+        const navLinks = document.getElementById("landing-nav-links");
+        if (navToggle && navLinks) {
+            navToggle.addEventListener("click", () => {
+                navLinks.classList.toggle("mobile-open");
+            });
+            navLinks.querySelectorAll("a").forEach(link => {
+                link.addEventListener("click", () => {
+                    navLinks.classList.remove("mobile-open");
+                });
+            });
+        }
+    </script>
 </body>
 
 </html>

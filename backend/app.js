@@ -158,6 +158,17 @@ if (typeof window === "undefined") {
       const pillLabel = document.getElementById("college-pill-label");
       if (pillLabel && collegeName) pillLabel.textContent = "🏛️ " + collegeName;
     }
+
+    const mobileAvatar = $("#mobile-user-avatar");
+    if (mobileAvatar) {
+      if (!state.user) {
+        mobileAvatar.innerHTML = `<button class="btn btn-primary btn-sm" id="btn-mobile-login" style="padding:5px 12px;font-size:12px;">Sign in</button>`;
+        $("#btn-mobile-login").addEventListener("click", openLoginModal);
+      } else {
+        mobileAvatar.innerHTML = `<span class="user-chip__avatar" style="width:30px;height:30px;font-size:11px;cursor:pointer;" title="${escapeHtml(state.user.name)}">${escapeHtml(initials(state.user.name))}</span>`;
+        mobileAvatar.querySelector(".user-chip__avatar").addEventListener("click", () => switchView("profile"));
+      }
+    }
   }
 
   function openLoginModal() {
@@ -277,13 +288,33 @@ if (typeof window === "undefined") {
     profile: { title: "Profile", desc: "Your account details." },
   };
 
+  function closeMobileSidebar() {
+    const sidebar = $("#sidebar");
+    const backdrop = $("#sidebar-backdrop");
+    if (sidebar) sidebar.classList.remove("open");
+    if (backdrop) backdrop.classList.remove("active");
+  }
+
+  function openMobileSidebar() {
+    const sidebar = $("#sidebar");
+    const backdrop = $("#sidebar-backdrop");
+    if (sidebar) sidebar.classList.add("open");
+    if (backdrop) backdrop.classList.add("active");
+  }
+
   function switchView(view) {
     state.view = view;
     $$(".nav-item").forEach((btn) => btn.classList.toggle("active", btn.dataset.view === view));
+    $$(".mobile-bottom-item").forEach((btn) => {
+      if (btn.dataset.view) {
+        btn.classList.toggle("active", btn.dataset.view === view);
+      }
+    });
     const meta = VIEW_META[view] || { title: view, desc: "" };
     $("#view-title").textContent = meta.title;
     $("#view-desc").textContent = meta.desc;
     $("#topbar-actions").innerHTML = "";
+    closeMobileSidebar();
     renderView(view);
   }
 
@@ -291,6 +322,28 @@ if (typeof window === "undefined") {
     $$(".nav-item").forEach((btn) => {
       btn.addEventListener("click", () => switchView(btn.dataset.view));
     });
+
+    // Mobile sidebar toggle handlers
+    const btnToggle = $("#btn-toggle-sidebar");
+    const btnClose = $("#btn-close-sidebar");
+    const backdrop = $("#sidebar-backdrop");
+    if (btnToggle) btnToggle.addEventListener("click", openMobileSidebar);
+    if (btnClose) btnClose.addEventListener("click", closeMobileSidebar);
+    if (backdrop) backdrop.addEventListener("click", closeMobileSidebar);
+
+    // Mobile bottom navigation items
+    $$(".mobile-bottom-item").forEach((btn) => {
+      if (btn.dataset.view) {
+        btn.addEventListener("click", () => switchView(btn.dataset.view));
+      }
+    });
+    const btnAddMobile = $("#mobile-btn-add-item");
+    if (btnAddMobile) {
+      btnAddMobile.addEventListener("click", () => {
+        if (!requireLogin()) return;
+        openItemFormModal();
+      });
+    }
   }
 
   /* ---------------------------------------------------------------------- */
@@ -1180,10 +1233,6 @@ if (typeof window === "undefined") {
 
   function boot() {
     loadUser();
-    if (!state.user) {
-      window.location.replace("/frontend/auth.html?mode=login");
-      return;
-    }
     renderAuthBox();
     setupNav();
     switchView("dashboard");
