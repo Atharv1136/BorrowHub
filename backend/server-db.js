@@ -352,6 +352,9 @@ app.get("/auth", (_req, res) => res.sendFile(path.join(ROOT, "frontend", "auth.h
 app.get("/login", (_req, res) => res.sendFile(path.join(ROOT, "frontend", "login.html")));
 app.get("/signup", (_req, res) => res.sendFile(path.join(ROOT, "frontend", "signup.html")));
 app.get("/forgot-password", (_req, res) => res.sendFile(path.join(ROOT, "frontend", "forgot-password.html")));
+app.get("/frontend/app.js", (_req, res) => res.sendFile(path.join(ROOT, "frontend", "app.js")));
+app.get("/backend/app.js", (_req, res) => res.sendFile(path.join(ROOT, "frontend", "app.js")));
+app.get("/app.js", (_req, res) => res.sendFile(path.join(ROOT, "frontend", "app.js")));
 app.get("/dashboard", (_req, res) => res.sendFile(path.join(ROOT, "frontend", "dashboard.html")));
 app.use((error, _req, res, _next) => { console.error(error); res.status(500).json({ message: "Database request failed." }); });
 
