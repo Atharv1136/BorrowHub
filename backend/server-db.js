@@ -197,7 +197,11 @@ async function initialiseDatabase() {
         }
     } catch (e) { console.warn("[DB Column Check - transactions amount cols]", e.message); }
     await pool.query("CREATE TABLE IF NOT EXISTS need_posts (need_id INT AUTO_INCREMENT PRIMARY KEY, user_id INT NOT NULL, item_name VARCHAR(160) NOT NULL, required_from DATE, required_until DATE, reason VARCHAR(255), urgency VARCHAR(20), created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY (user_id) REFERENCES users(user_id))");
-    await pool.query("CREATE TABLE IF NOT EXISTS writing_offers (offer_id INT AUTO_INCREMENT PRIMARY KEY, writing_request_id INT NOT NULL, writer_id INT NOT NULL, proposed_price DECIMAL(10,2), delivery_date DATE, message TEXT, status VARCHAR(30) DEFAULT 'pending', FOREIGN KEY (writing_request_id) REFERENCES writing_requests(writing_request_id), FOREIGN KEY (writer_id) REFERENCES users(user_id))");
+    await pool.query("CREATE TABLE IF NOT EXISTS writing_offers (offer_id INT AUTO_INCREMENT PRIMARY KEY, writing_request_id INT NOT NULL, writer_id INT NOT NULL, proposed_price DECIMAL(10,2), delivery_date DATE, message TEXT, status VARCHAR(30) DEFAULT 'pending', created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY (writing_request_id) REFERENCES writing_requests(writing_request_id), FOREIGN KEY (writer_id) REFERENCES users(user_id))");
+    try {
+        const [wofCols] = await pool.query("SHOW COLUMNS FROM writing_offers LIKE 'created_at'");
+        if (!wofCols.length) await pool.query("ALTER TABLE writing_offers ADD COLUMN created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP");
+    } catch (e) { console.warn("[DB Column Check - writing_offers created_at]", e.message); }
     await pool.query("CREATE TABLE IF NOT EXISTS favorites (user_id INT NOT NULL, item_id INT NOT NULL, PRIMARY KEY (user_id, item_id), FOREIGN KEY (user_id) REFERENCES users(user_id), FOREIGN KEY (item_id) REFERENCES items(item_id))");
     await pool.query("CREATE TABLE IF NOT EXISTS notifications (notification_id INT AUTO_INCREMENT PRIMARY KEY, user_id INT NOT NULL, message TEXT NOT NULL, is_read BOOLEAN DEFAULT FALSE, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY (user_id) REFERENCES users(user_id))");
     await pool.query("CREATE TABLE IF NOT EXISTS writing_orders (writing_order_id INT AUTO_INCREMENT PRIMARY KEY, writing_request_id INT NOT NULL, offer_id INT DEFAULT NULL, student_id INT NOT NULL, writer_id INT NOT NULL, agreed_price DECIMAL(10,2) NOT NULL, advance_amount DECIMAL(10,2) NOT NULL DEFAULT 0.00, platform_fee DECIMAL(10,2) NOT NULL DEFAULT 0.00, total_paid_online DECIMAL(10,2) NOT NULL DEFAULT 0.00, remaining_amount DECIMAL(10,2) NOT NULL DEFAULT 0.00, payment_status VARCHAR(40) NOT NULL DEFAULT 'unpaid', razorpay_order_id VARCHAR(100) DEFAULT NULL, razorpay_payment_id VARCHAR(100) DEFAULT NULL, assigned_date DATE DEFAULT NULL, due_date DATE DEFAULT NULL, delivered_date DATE DEFAULT NULL, status VARCHAR(30) DEFAULT 'in_progress', created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY (writing_request_id) REFERENCES writing_requests(writing_request_id), FOREIGN KEY (student_id) REFERENCES users(user_id), FOREIGN KEY (writer_id) REFERENCES users(user_id))");
@@ -684,7 +688,7 @@ app.post("/api/need-posts", async (req, res, next) => { try { const [result] = a
 app.get("/api/writing-requests/:id/offers", async (req, res, next) => {
     try {
         const [rows] = await pool.query(
-            "SELECT o.*, u.name AS writer_name, wp.avg_rating, wp.completed_orders, wp.is_verified FROM writing_offers o JOIN users u ON u.user_id = o.writer_id LEFT JOIN writer_profiles wp ON wp.writer_id = o.writer_id WHERE o.writing_request_id = ? ORDER BY o.created_at DESC",
+            "SELECT o.*, u.name AS writer_name, wp.avg_rating, wp.completed_orders, wp.is_verified FROM writing_offers o JOIN users u ON u.user_id = o.writer_id LEFT JOIN writer_profiles wp ON wp.writer_id = o.writer_id WHERE o.writing_request_id = ? ORDER BY o.offer_id DESC",
             [req.params.id]
         );
         res.json(rows);
