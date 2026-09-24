@@ -1,6 +1,3 @@
-if (typeof window === "undefined") {
-  require("./server-db");
-} else {
   /* ==========================================================================
      BorrowHub frontend
      Talks to the Express/MySQL API defined in app.js (server).
@@ -1194,6 +1191,10 @@ if (typeof window === "undefined") {
   /* Writing requests + offers                                               */
   /* ---------------------------------------------------------------------- */
 
+  /* ---------------------------------------------------------------------- */
+  /* Writing requests + offers                                               */
+  /* ---------------------------------------------------------------------- */
+
   async function renderWritingRequests(content) {
     $("#topbar-actions").innerHTML = `<button class="btn btn-olive" id="btn-post-writing">Post a writing request</button>`;
     $("#btn-post-writing").addEventListener("click", () => {
@@ -1227,6 +1228,7 @@ if (typeof window === "undefined") {
   }
 
   function writingRequestCard(r) {
+    const isOwner = state.user && Number(state.user.user_id) === Number(r.student_id);
     return `
     <div class="item-card writing-card">
       <div class="item-card__body" style="padding-top:16px;">
@@ -1235,12 +1237,16 @@ if (typeof window === "undefined") {
           ${badge(r.status)}
         </div>
         <h4 style="margin-top:2px;">${escapeHtml(r.title)}</h4>
-        <p class="meta">Posted by ${escapeHtml(r.student_name)} · Due ${fmtDate(r.deadline)}</p>
+        <p class="meta">Posted by ${escapeHtml(r.student_name)} ${isOwner ? '<strong>(You)</strong>' : ''} · Due ${fmtDate(r.deadline)}</p>
         <p class="desc">${escapeHtml(r.description || "No further details given.")}</p>
         <p class="meta">${r.budget ? `Budget ₹${r.budget}` : ""} ${r.length_pages ? `· ~${r.length_pages} pages` : ""}</p>
         <div class="item-card__foot">
-          <button class="btn btn-ghost btn-sm btn-view-offers" data-id="${r.writing_request_id}">View offers</button>
-          <button class="btn btn-olive btn-sm btn-make-offer" data-id="${r.writing_request_id}">Submit offer</button>
+          <button class="btn btn-ghost btn-sm btn-view-offers" data-id="${r.writing_request_id}">
+            View offers ${r.status === 'offer_received' ? '🔔' : ''}
+          </button>
+          ${!isOwner ? `
+            <button class="btn btn-olive btn-sm btn-make-offer" data-id="${r.writing_request_id}">Submit offer</button>
+          ` : ''}
         </div>
         <div class="offers-slot" data-slot="${r.writing_request_id}"></div>
       </div>
@@ -1250,21 +1256,119 @@ if (typeof window === "undefined") {
 
   function wireWritingRequestButtons(root, requests) {
     $$(".btn-view-offers", root).forEach((btn) => btn.addEventListener("click", async () => {
-      const slot = root.querySelector(`.offers-slot[data-slot="${btn.dataset.id}"]`);
+      const reqId = btn.dataset.id;
+      const req = requests.find((r) => String(r.writing_request_id) === String(reqId));
+      const isOwner = state.user && req && Number(state.user.user_id) === Number(req.student_id);
+      const slot = root.querySelector(`.offers-slot[data-slot="${reqId}"]`);
       if (slot.dataset.open === "1") { slot.innerHTML = ""; slot.dataset.open = "0"; return; }
       slot.innerHTML = `<p class="loading">Loading offers…</p>`;
       try {
-        const offers = await api(`/writing-requests/${btn.dataset.id}/offers`);
+        const offers = await api(`/writing-requests/${reqId}/offers`);
         slot.dataset.open = "1";
-        slot.innerHTML = offers.length ? offers.map((o) => `
-        <div class="list-row">
-          <div>
-            <p class="list-row__msg"><strong>${escapeHtml(o.writer_name)}</strong> — ₹${o.proposed_price} · by ${fmtDate(o.delivery_date)}</p>
-            <p class="list-row__time">${escapeHtml(o.message || "No message")} · ${o.avg_rating ? `★ ${o.avg_rating}` : "New writer"}</p>
+        if (!offers.length) {
+          slot.innerHTML = emptyState("No offers yet", "Check back soon.");
+          return;
+        }
+
+        slot.innerHTML = offers.map((o) => {
+          const price = Number(o.proposed_price) || 0;
+          const advance = Math.round(price / 2 * 100) / 100;
+          const fee = price <= 200 ? 5 : 10;
+          const onlinePayable = Math.round((advance + fee) * 100) / 100;
+          const remaining = Math.round((price - advance) * 100) / 100;
+
+          return `
+          <div class="list-row" style="flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px;padding:12px;background:rgba(255,255,255,0.03);border-radius:8px;margin-top:8px;border:1px solid rgba(255,255,255,0.08);">
+            <div style="flex:1;min-width:200px;">
+              <p class="list-row__msg"><strong>${escapeHtml(o.writer_name)}</strong> — Total ₹${o.proposed_price} · by ${fmtDate(o.delivery_date)}</p>
+              <p class="list-row__time" style="margin-top:4px;">${escapeHtml(o.message || "No message")} · ${o.avg_rating ? `★ ${o.avg_rating}` : "Verified writer"}</p>
+              <div style="font-size:11.5px;margin-top:6px;color:#38bdf8;background:rgba(56,189,248,0.1);padding:4px 8px;border-radius:4px;display:inline-block;">
+                💳 50% Advance: ₹${advance} + ₹${fee} Platform Fee = <strong>₹${onlinePayable} online</strong> | 💵 Rest ₹${remaining} in person
+              </div>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;">
+              ${badge(o.status)}
+              ${(isOwner && o.status === 'pending') ? `
+                <button class="btn btn-olive btn-sm btn-accept-offer" data-offer-id="${o.offer_id}">
+                  Accept & Pay ₹${onlinePayable}
+                </button>
+              ` : ''}
+            </div>
           </div>
-          ${badge(o.status)}
-        </div>
-      `).join("") : emptyState("No offers yet", "Check back soon.");
+        `;
+        }).join("");
+
+        // Wire up "Accept & Pay" buttons
+        $$(".btn-accept-offer", slot).forEach((accBtn) => {
+          accBtn.addEventListener("click", async () => {
+            if (!requireLogin()) return;
+            const offerId = accBtn.dataset.offerId;
+            accBtn.disabled = true;
+            accBtn.textContent = "Processing…";
+            try {
+              const payData = await api("/writing-orders/create-payment-order", {
+                method: "POST",
+                body: { offer_id: offerId, student_id: state.user.user_id }
+              });
+
+              if (typeof window.Razorpay === "undefined") {
+                showBanner("Razorpay SDK failed to load. Please refresh and try again.", "err");
+                accBtn.disabled = false;
+                accBtn.textContent = "Accept & Pay";
+                return;
+              }
+
+              const options = {
+                key: payData.key_id,
+                amount: payData.amount,
+                currency: payData.currency || "INR",
+                name: "BorrowHub Writing Service",
+                description: `50% Advance for '${payData.request_title}' (Writer: ${payData.writer_name})`,
+                order_id: payData.order_id,
+                prefill: {
+                  name: state.user ? state.user.name : payData.student.name,
+                  email: state.user ? state.user.email : payData.student.email,
+                  contact: state.user ? state.user.phone : payData.student.phone
+                },
+                theme: { color: "#10b981" },
+                handler: async function (response) {
+                  try {
+                    await api("/writing-orders/verify-payment", {
+                      method: "POST",
+                      body: {
+                        razorpay_order_id: response.razorpay_order_id,
+                        razorpay_payment_id: response.razorpay_payment_id,
+                        razorpay_signature: response.razorpay_signature,
+                        offer_id: offerId,
+                        student_id: state.user.user_id
+                      }
+                    });
+                    showBanner("Payment successful! Writing order assigned.", "ok");
+                    renderView("writing-orders");
+                  } catch (err) {
+                    showBanner("Payment verification error: " + err.message, "err");
+                    accBtn.disabled = false;
+                    accBtn.textContent = "Accept & Pay";
+                  }
+                },
+                modal: {
+                  ondismiss: function () {
+                    showBanner("Payment cancelled.", "err");
+                    accBtn.disabled = false;
+                    accBtn.textContent = "Accept & Pay";
+                  }
+                }
+              };
+              const rzp = new window.Razorpay(options);
+              rzp.open();
+            } catch (err) {
+              showBanner(err.message, "err");
+              accBtn.disabled = false;
+              accBtn.textContent = "Accept & Pay";
+            }
+          });
+        });
+
       } catch (err) { slot.innerHTML = `<p class="field-hint">${escapeHtml(err.message)}</p>`; }
     }));
 
@@ -1325,7 +1429,7 @@ if (typeof window === "undefined") {
       <div class="field">
         <label>Your writer ID</label>
         <input type="number" name="writer_id" value="${state.user.user_id}" required />
-        <p class="field-hint">This must match an existing Writer_Profiles row — if you haven't been registered as a writer in the database yet, this will be rejected.</p>
+        <p class="field-hint">Your User ID will be linked to this offer.</p>
       </div>
       <div class="field-row">
         <div class="field"><label>Your price (₹)</label><input type="number" name="proposed_price" min="0" required /></div>
@@ -1383,24 +1487,302 @@ if (typeof window === "undefined") {
   /* ---------------------------------------------------------------------- */
 
   async function renderWritingOrders(content) {
-    const orders = await api("/writing-orders");
-    content.innerHTML = orders.length ? `
-    <table class="ledger">
-      <thead><tr><th>Title</th><th>Student</th><th>Writer</th><th>Agreed price</th><th>Due</th><th>Status</th></tr></thead>
-      <tbody>
-        ${orders.map((o) => `
-          <tr>
-            <td>${escapeHtml(o.title)}</td>
-            <td>${escapeHtml(o.student_name)}</td>
-            <td>${escapeHtml(o.writer_name)}</td>
-            <td>₹${o.agreed_price}</td>
-            <td>${fmtDate(o.due_date)}</td>
-            <td>${badge(o.status)}</td>
-          </tr>
-        `).join("")}
-      </tbody>
-    </table>
-  ` : emptyState("No orders yet", "Orders appear once a student accepts a writer's offer.");
+    if (!requireLoginView(content)) return;
+    content.innerHTML = `<p class="loading">Loading orders…</p>`;
+    try {
+      const orders = await api(`/writing-orders?user_id=${state.user.user_id}`);
+      if (!orders.length) {
+        content.innerHTML = emptyState("No writing orders yet", "Orders appear once a student accepts a writer's offer.");
+        return;
+      }
+
+      content.innerHTML = `
+      <div style="display:flex;flex-direction:column;gap:16px;">
+        ${orders.map(writingOrderCard).join("")}
+      </div>
+    `;
+
+      wireWritingOrderButtons(content, orders);
+    } catch (err) {
+      content.innerHTML = `<p class="field-hint">${escapeHtml(err.message)}</p>`;
+    }
+  }
+
+  function writingOrderCard(o) {
+    const isStudent = state.user && Number(state.user.user_id) === Number(o.student_id);
+    const isWriter = state.user && Number(state.user.user_id) === Number(o.writer_id);
+    const isPaid = o.payment_status === 'half_paid' || o.payment_status === 'fully_paid';
+    const isCompleted = o.status === 'completed';
+
+    const price = Number(o.agreed_price) || 0;
+    const advance = Number(o.advance_amount) || Math.round(price / 2 * 100) / 100;
+    const fee = Number(o.platform_fee) || (price <= 200 ? 5 : 10);
+    const onlinePaid = Number(o.total_paid_online) || (advance + fee);
+    const remaining = Number(o.remaining_amount) || Math.round((price - advance) * 100) / 100;
+
+    return `
+    <div class="writing-order-card">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap;">
+        <div>
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;flex-wrap:wrap;">
+            <span class="item-card__tab-inline writing">${escapeHtml(o.subject || o.type || 'Writing')}</span>
+            ${badge(o.status)}
+            ${badge(o.payment_status === 'half_paid' ? '50% Paid (Advance)' : o.payment_status === 'fully_paid' ? 'Fully Paid' : 'Unpaid')}
+          </div>
+          <h3 style="margin:4px 0;font-size:18px;">${escapeHtml(o.title)}</h3>
+          <p class="meta" style="margin-top:4px;">
+            Student: <strong>${escapeHtml(o.student_name)}</strong> ${isStudent ? '(You)' : ''} · 
+            Writer: <strong>${escapeHtml(o.writer_name)}</strong> ${isWriter ? '(You)' : ''}
+          </p>
+        </div>
+        <div style="text-align:right;">
+          <p style="font-size:20px;font-weight:700;color:#10b981;margin:0;">Total ₹${price}</p>
+          <p class="meta" style="margin-top:2px;">Due: ${fmtDate(o.due_date)}</p>
+        </div>
+      </div>
+
+      <div style="margin:14px 0;padding:12px 14px;background:rgba(0,0,0,0.2);border-radius:8px;font-size:12.5px;display:flex;flex-wrap:wrap;gap:16px;justify-content:space-between;align-items:center;border:1px solid rgba(255,255,255,0.06);">
+        <div>💳 <strong>Online Paid (50% + Fee):</strong> <span style="color:#38bdf8;font-weight:600;">₹${onlinePaid}</span> (₹${advance} advance + ₹${fee} platform fee)</div>
+        <div>💵 <strong>Remaining Balance (Payable in Person):</strong> <span style="color:#f59e0b;font-weight:600;">₹${remaining}</span></div>
+      </div>
+
+      <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:14px;padding-top:12px;border-top:1px solid rgba(255,255,255,0.08);align-items:center;">
+        ${isPaid ? `
+          <button class="btn btn-olive btn-sm btn-order-chat" data-id="${o.writing_order_id}">
+            💬 Chat with ${isStudent ? 'Writer (' + escapeHtml(o.writer_name) + ')' : 'Student (' + escapeHtml(o.student_name) + ')'}
+          </button>
+        ` : `
+          <button class="btn btn-ghost btn-sm" disabled style="opacity:0.6;cursor:not-allowed;">
+            🔒 Chat locked (50% payment pending)
+          </button>
+        `}
+
+        <button class="btn btn-ghost btn-sm btn-order-deliverables" data-id="${o.writing_order_id}">
+          📄 View / Download PDF Assignment
+        </button>
+
+        ${(isWriter && !isCompleted) ? `
+          <button class="btn btn-ghost btn-sm btn-order-upload" data-id="${o.writing_order_id}" style="color:#38bdf8;border-color:rgba(56,189,248,0.3);">
+            📤 Upload PDF
+          </button>
+        ` : ''}
+
+        ${(isWriter && !isCompleted) ? `
+          <button class="btn btn-olive btn-sm btn-order-complete" data-id="${o.writing_order_id}" data-remaining="${remaining}">
+            ✅ Mark as Done (Collected ₹${remaining} in person)
+          </button>
+        ` : ''}
+      </div>
+    </div>
+  `;
+  }
+
+  function wireWritingOrderButtons(root, orders) {
+    // Chat button
+    $$(".btn-order-chat", root).forEach((btn) => btn.addEventListener("click", () => {
+      const order = orders.find((o) => String(o.writing_order_id) === String(btn.dataset.id));
+      openWritingChatModal(btn.dataset.id, order);
+    }));
+
+    // View Deliverables
+    $$(".btn-order-deliverables", root).forEach((btn) => btn.addEventListener("click", () => {
+      openViewDeliverablesModal(btn.dataset.id);
+    }));
+
+    // Upload PDF
+    $$(".btn-order-upload", root).forEach((btn) => btn.addEventListener("click", () => {
+      openUploadPDFModal(btn.dataset.id);
+    }));
+
+    // Mark as Complete
+    $$(".btn-order-complete", root).forEach((btn) => btn.addEventListener("click", async () => {
+      const remaining = btn.dataset.remaining;
+      if (!confirm(`Confirm that you have completed the assignment and collected the remaining ₹${remaining} balance in person?`)) return;
+      btn.disabled = true;
+      try {
+        await api(`/writing-orders/${btn.dataset.id}/complete`, { method: "PATCH" });
+        showBanner("Order completed! Remaining balance marked as collected.", "ok");
+        renderView("writing-orders");
+      } catch (err) {
+        showBanner(err.message, "err");
+        btn.disabled = false;
+      }
+    }));
+  }
+
+  let chatPollTimer = null;
+
+  function openWritingChatModal(orderId, order) {
+    const otherPerson = state.user.user_id === order.student_id ? order.writer_name : order.student_name;
+    openModal(`
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+        <h3 style="margin:0;">💬 Chat — ${escapeHtml(order.title)}</h3>
+        <span style="font-size:12px;color:#94a3b8;">With ${escapeHtml(otherPerson)}</span>
+      </div>
+      <p style="font-size:12px;color:#94a3b8;margin-bottom:10px;">Chat enabled after 50% advance payment. Messages are stored for this order.</p>
+      <div class="chat-container">
+        <div id="chat-messages" class="chat-messages"><p class="loading">Loading chat history…</p></div>
+        <form id="chat-form" class="chat-input-bar">
+          <input type="text" id="chat-input" placeholder="Type a message…" autocomplete="off" required />
+          <button type="submit" class="btn btn-olive btn-sm">Send</button>
+        </form>
+      </div>
+      <div style="margin-top:14px;text-align:right;">
+        <button type="button" class="btn btn-ghost" id="close-chat">Close</button>
+      </div>
+    `);
+
+    $("#close-chat").addEventListener("click", () => {
+      if (chatPollTimer) clearInterval(chatPollTimer);
+      closeModal();
+    });
+
+    const loadMessages = async () => {
+      try {
+        const msgs = await api(`/writing-orders/${orderId}/messages`);
+        const container = $("#chat-messages");
+        if (!container) return;
+        if (!msgs.length) {
+          container.innerHTML = `<p style="text-align:center;color:#64748b;font-size:13px;margin:auto;">No messages yet. Send a message to start chatting!</p>`;
+          return;
+        }
+        container.innerHTML = msgs.map((m) => {
+          const isMe = Number(m.sender_id) === Number(state.user.user_id);
+          const timeStr = new Date(m.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+          return `
+            <div class="chat-bubble ${isMe ? 'sent' : 'received'}">
+              <div style="font-size:11px;font-weight:600;margin-bottom:2px;opacity:0.85;">${escapeHtml(m.sender_name)}</div>
+              <div>${escapeHtml(m.message)}</div>
+              <div class="chat-meta">${timeStr}</div>
+            </div>
+          `;
+        }).join("");
+        container.scrollTop = container.scrollHeight;
+      } catch (err) {
+        if ($("#chat-messages")) $("#chat-messages").innerHTML = `<p class="field-hint">${escapeHtml(err.message)}</p>`;
+      }
+    };
+
+    loadMessages();
+    chatPollTimer = setInterval(loadMessages, 3000);
+
+    $("#chat-form").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const input = $("#chat-input");
+      const text = input.value.trim();
+      if (!text) return;
+      input.value = "";
+      try {
+        await api(`/writing-orders/${orderId}/messages`, {
+          method: "POST",
+          body: { sender_id: state.user.user_id, message: text }
+        });
+        await loadMessages();
+      } catch (err) {
+        showBanner(err.message, "err");
+      }
+    });
+  }
+
+  function openUploadPDFModal(orderId) {
+    openModal(`
+      <h2>Upload Assignment PDF</h2>
+      <p class="modal-sub">Upload the completed work or assignment draft PDF for the student.</p>
+      <form id="upload-pdf-form">
+        <div class="field">
+          <label>Select PDF File</label>
+          <input type="file" name="pdf" accept=".pdf,.doc,.docx,.png,.jpg" id="pdf-file-input" />
+        </div>
+        <div class="field">
+          <label>Or PDF Document URL / Link</label>
+          <input type="url" name="file_url" placeholder="https://example.com/assignment.pdf" />
+        </div>
+        <div class="field">
+          <label>Notes / Remarks</label>
+          <textarea name="notes" placeholder="e.g. Attached complete DBMS Unit 3 notes covering ER diagrams."></textarea>
+        </div>
+        <div class="modal-actions">
+          <button type="button" class="btn btn-ghost" id="cancel-upload">Cancel</button>
+          <button type="submit" class="btn btn-olive">Upload Deliverable</button>
+        </div>
+      </form>
+    `);
+    $("#cancel-upload").addEventListener("click", closeModal);
+
+    $("#upload-pdf-form").addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const fileInput = $("#pdf-file-input");
+      const fileUrl = e.target.file_url.value.trim();
+      const notes = e.target.notes.value.trim();
+
+      if (!fileInput.files.length && !fileUrl) {
+        showBanner("Please select a file to upload or enter a PDF URL.", "err");
+        return;
+      }
+
+      try {
+        let finalUrl = fileUrl;
+        let fileName = "assignment.pdf";
+        if (fileInput.files.length) {
+          const formData = new FormData();
+          formData.append("image", fileInput.files[0]);
+          const upRes = await fetch(`${API_BASE}/upload`, { method: "POST", body: formData });
+          const upData = await upRes.json();
+          if (upData.image_url) {
+            finalUrl = upData.image_url;
+            fileName = fileInput.files[0].name;
+          }
+        }
+
+        await api(`/writing-orders/${orderId}/deliverables`, {
+          method: "POST",
+          body: { file_url: finalUrl, file_name: fileName, notes }
+        });
+
+        closeModal();
+        showBanner("PDF Assignment uploaded successfully!", "ok");
+        renderView("writing-orders");
+      } catch (err) {
+        showBanner(err.message, "err");
+      }
+    });
+  }
+
+  function openViewDeliverablesModal(orderId) {
+    openModal(`
+      <h2>Assignment PDFs & Deliverables</h2>
+      <div id="deliverables-slot" style="margin-top:14px;"><p class="loading">Loading files…</p></div>
+      <div style="margin-top:16px;text-align:right;">
+        <button type="button" class="btn btn-ghost" id="close-deliv">Close</button>
+      </div>
+    `);
+    $("#close-deliv").addEventListener("click", closeModal);
+
+    (async () => {
+      try {
+        const deliverables = await api(`/writing-orders/${orderId}/deliverables`);
+        const slot = $("#deliverables-slot");
+        if (!deliverables.length) {
+          slot.innerHTML = emptyState("No files uploaded yet", "The writer will upload the assignment PDF here once completed.");
+          return;
+        }
+        slot.innerHTML = deliverables.map((d) => `
+          <div class="deliverable-item">
+            <div>
+              <p style="font-weight:600;margin:0;">📄 ${escapeHtml(d.file_name || 'Assignment PDF')}</p>
+              <p style="font-size:11.5px;color:#94a3b8;margin-top:2px;">
+                Uploaded ${fmtDate(d.uploaded_at)} ${d.notes ? '· ' + escapeHtml(d.notes) : ''}
+              </p>
+            </div>
+            <a href="${escapeHtml(d.file_url)}" target="_blank" download class="btn btn-olive btn-sm" style="text-decoration:none;">
+              Download PDF ⬇️
+            </a>
+          </div>
+        `).join("");
+      } catch (err) {
+        $("#deliverables-slot").innerHTML = `<p class="field-hint">${escapeHtml(err.message)}</p>`;
+      }
+    })();
   }
 
   /* ---------------------------------------------------------------------- */
@@ -1534,4 +1916,3 @@ if (typeof window === "undefined") {
   }
 
   document.addEventListener("DOMContentLoaded", boot);
-}

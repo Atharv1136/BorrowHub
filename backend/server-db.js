@@ -200,7 +200,23 @@ async function initialiseDatabase() {
     await pool.query("CREATE TABLE IF NOT EXISTS writing_offers (offer_id INT AUTO_INCREMENT PRIMARY KEY, writing_request_id INT NOT NULL, writer_id INT NOT NULL, proposed_price DECIMAL(10,2), delivery_date DATE, message TEXT, status VARCHAR(30) DEFAULT 'pending', FOREIGN KEY (writing_request_id) REFERENCES writing_requests(writing_request_id), FOREIGN KEY (writer_id) REFERENCES users(user_id))");
     await pool.query("CREATE TABLE IF NOT EXISTS favorites (user_id INT NOT NULL, item_id INT NOT NULL, PRIMARY KEY (user_id, item_id), FOREIGN KEY (user_id) REFERENCES users(user_id), FOREIGN KEY (item_id) REFERENCES items(item_id))");
     await pool.query("CREATE TABLE IF NOT EXISTS notifications (notification_id INT AUTO_INCREMENT PRIMARY KEY, user_id INT NOT NULL, message TEXT NOT NULL, is_read BOOLEAN DEFAULT FALSE, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY (user_id) REFERENCES users(user_id))");
-    await pool.query("CREATE TABLE IF NOT EXISTS writing_orders (order_id INT AUTO_INCREMENT PRIMARY KEY, writing_request_id INT NOT NULL, student_id INT NOT NULL, writer_id INT NOT NULL, agreed_price DECIMAL(10,2), due_date DATE, status VARCHAR(30) DEFAULT 'assigned', created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY (writing_request_id) REFERENCES writing_requests(writing_request_id), FOREIGN KEY (student_id) REFERENCES users(user_id), FOREIGN KEY (writer_id) REFERENCES users(user_id))");
+    await pool.query("CREATE TABLE IF NOT EXISTS writing_orders (writing_order_id INT AUTO_INCREMENT PRIMARY KEY, writing_request_id INT NOT NULL, offer_id INT DEFAULT NULL, student_id INT NOT NULL, writer_id INT NOT NULL, agreed_price DECIMAL(10,2) NOT NULL, advance_amount DECIMAL(10,2) NOT NULL DEFAULT 0.00, platform_fee DECIMAL(10,2) NOT NULL DEFAULT 0.00, total_paid_online DECIMAL(10,2) NOT NULL DEFAULT 0.00, remaining_amount DECIMAL(10,2) NOT NULL DEFAULT 0.00, payment_status VARCHAR(40) NOT NULL DEFAULT 'unpaid', razorpay_order_id VARCHAR(100) DEFAULT NULL, razorpay_payment_id VARCHAR(100) DEFAULT NULL, assigned_date DATE DEFAULT NULL, due_date DATE DEFAULT NULL, delivered_date DATE DEFAULT NULL, status VARCHAR(30) DEFAULT 'in_progress', created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY (writing_request_id) REFERENCES writing_requests(writing_request_id), FOREIGN KEY (student_id) REFERENCES users(user_id), FOREIGN KEY (writer_id) REFERENCES users(user_id))");
+    try {
+        const [woCols] = await pool.query("SHOW COLUMNS FROM writing_orders LIKE 'advance_amount'");
+        if (!woCols.length) {
+            await pool.query("ALTER TABLE writing_orders ADD COLUMN advance_amount DECIMAL(10,2) NOT NULL DEFAULT 0.00");
+            await pool.query("ALTER TABLE writing_orders ADD COLUMN platform_fee DECIMAL(10,2) NOT NULL DEFAULT 0.00");
+            await pool.query("ALTER TABLE writing_orders ADD COLUMN total_paid_online DECIMAL(10,2) NOT NULL DEFAULT 0.00");
+            await pool.query("ALTER TABLE writing_orders ADD COLUMN remaining_amount DECIMAL(10,2) NOT NULL DEFAULT 0.00");
+            await pool.query("ALTER TABLE writing_orders ADD COLUMN payment_status VARCHAR(40) NOT NULL DEFAULT 'unpaid'");
+            await pool.query("ALTER TABLE writing_orders ADD COLUMN razorpay_order_id VARCHAR(100) DEFAULT NULL");
+            await pool.query("ALTER TABLE writing_orders ADD COLUMN razorpay_payment_id VARCHAR(100) DEFAULT NULL");
+            await pool.query("ALTER TABLE writing_orders ADD COLUMN offer_id INT DEFAULT NULL");
+            await pool.query("ALTER TABLE writing_orders ADD COLUMN delivered_date DATE DEFAULT NULL");
+        }
+    } catch (e) { console.warn("[DB Column Check - writing_orders payment cols]", e.message); }
+    await pool.query("CREATE TABLE IF NOT EXISTS writing_deliverables (deliverable_id INT AUTO_INCREMENT PRIMARY KEY, writing_order_id INT NOT NULL, file_url VARCHAR(500) NOT NULL, file_name VARCHAR(255) DEFAULT NULL, uploaded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, notes TEXT)");
+    await pool.query("CREATE TABLE IF NOT EXISTS writing_messages (message_id INT AUTO_INCREMENT PRIMARY KEY, writing_order_id INT NOT NULL, sender_id INT NOT NULL, receiver_id INT NOT NULL, message TEXT NOT NULL, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)");
     await pool.query("CREATE TABLE IF NOT EXISTS writer_profiles (writer_id INT PRIMARY KEY, bio TEXT, subjects VARCHAR(255), price_per_page DECIMAL(8,2) DEFAULT 0.00, sample_work_url VARCHAR(255), is_verified BOOLEAN DEFAULT FALSE, avg_rating DECIMAL(2,1) DEFAULT 0.0, completed_orders INT DEFAULT 0, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY (writer_id) REFERENCES users(user_id) ON DELETE CASCADE)");
 }
 
@@ -620,13 +636,19 @@ app.post("/api/borrow-requests", async (req, res, next) => {
 
 app.get("/api/writing-requests", async (req, res, next) => {
     try {
-        const { status } = req.query;
+        const { status, student_id } = req.query;
         let sql = "SELECT wr.*, u.name AS student_name FROM writing_requests wr JOIN users u ON u.user_id = wr.student_id";
+        const where = [];
         const params = [];
         if (status) {
-            sql += " WHERE wr.status = ?";
+            where.push("wr.status = ?");
             params.push(status);
         }
+        if (student_id) {
+            where.push("wr.student_id = ?");
+            params.push(student_id);
+        }
+        if (where.length) sql += " WHERE " + where.join(" AND ");
         sql += " ORDER BY wr.created_at DESC";
         const [rows] = await pool.query(sql, params);
         res.json(rows);
@@ -658,9 +680,340 @@ app.get("/api/transactions", async (_req, res, next) => { try { const [rows] = a
 app.patch("/api/transactions/:id/return", async (req, res, next) => { try { const [rows] = await pool.query("SELECT br.item_id FROM transactions t JOIN borrow_requests br ON br.request_id=t.request_id WHERE t.transaction_id = ?", [req.params.id]); await pool.query("UPDATE transactions SET status='returned', returned_date=CURDATE() WHERE transaction_id = ?", [req.params.id]); if (rows[0]) await pool.query("UPDATE items SET availability=TRUE WHERE item_id = ?", [rows[0].item_id]); res.json({ ok: true }); } catch (e) { next(e); } });
 app.get("/api/need-posts", async (_req, res, next) => { try { const [rows] = await pool.query("SELECT np.*, u.name user_name FROM need_posts np JOIN users u ON u.user_id=np.user_id ORDER BY np.created_at DESC"); res.json(rows); } catch (e) { next(e); } });
 app.post("/api/need-posts", async (req, res, next) => { try { const [result] = await pool.query("INSERT INTO need_posts (user_id,item_name,required_from,required_until,reason,urgency) VALUES (?,?,?,?,?,?)", [req.body.user_id, req.body.item_name, req.body.required_from, req.body.required_until, req.body.reason || "", req.body.urgency || "medium"]); res.status(201).json({ need_id: result.insertId, ...req.body }); } catch (e) { next(e); } });
-app.get("/api/writing-requests/:id/offers", async (req, res, next) => { try { const [rows] = await pool.query("SELECT o.*, u.name writer_name FROM writing_offers o JOIN users u ON u.user_id=o.writer_id WHERE o.writing_request_id=?", [req.params.id]); res.json(rows); } catch (e) { next(e); } });
-app.post("/api/writing-requests/:id/offers", async (req, res, next) => { try { const [result] = await pool.query("INSERT INTO writing_offers (writing_request_id,writer_id,proposed_price,delivery_date,message) VALUES (?,?,?,?,?)", [req.params.id, req.body.writer_id, req.body.proposed_price, req.body.delivery_date, req.body.message || ""]); res.status(201).json({ offer_id: result.insertId, ...req.body }); } catch (e) { next(e); } });
-app.get("/api/writing-orders", async (_req, res, next) => { try { const [rows] = await pool.query("SELECT o.*, wr.title, student.name student_name, writer.name writer_name FROM writing_orders o JOIN writing_requests wr ON wr.writing_request_id=o.writing_request_id JOIN users student ON student.user_id=o.student_id JOIN users writer ON writer.user_id=o.writer_id ORDER BY o.writing_order_id DESC"); res.json(rows); } catch (e) { next(e); } });
+
+app.get("/api/writing-requests/:id/offers", async (req, res, next) => {
+    try {
+        const [rows] = await pool.query(
+            "SELECT o.*, u.name AS writer_name, wp.avg_rating, wp.completed_orders, wp.is_verified FROM writing_offers o JOIN users u ON u.user_id = o.writer_id LEFT JOIN writer_profiles wp ON wp.writer_id = o.writer_id WHERE o.writing_request_id = ? ORDER BY o.created_at DESC",
+            [req.params.id]
+        );
+        res.json(rows);
+    } catch (e) { next(e); }
+});
+
+app.post("/api/writing-requests/:id/offers", async (req, res, next) => {
+    try {
+        const [result] = await pool.query(
+            "INSERT INTO writing_offers (writing_request_id,writer_id,proposed_price,delivery_date,message) VALUES (?,?,?,?,?)",
+            [req.params.id, req.body.writer_id, req.body.proposed_price, req.body.delivery_date, req.body.message || ""]
+        );
+        await pool.query("UPDATE writing_requests SET status = 'offer_received' WHERE writing_request_id = ? AND status = 'open'", [req.params.id]);
+        
+        // Notify student
+        const [reqData] = await pool.query("SELECT student_id, title FROM writing_requests WHERE writing_request_id = ?", [req.params.id]);
+        const [writerData] = await pool.query("SELECT name FROM users WHERE user_id = ?", [req.body.writer_id]);
+        if (reqData.length) {
+            await pool.query("INSERT INTO notifications (user_id, message) VALUES (?, ?)", [
+                reqData[0].student_id,
+                `✍️ New offer received from ${writerData[0]?.name || "a writer"} for ₹${req.body.proposed_price} on your request '${reqData[0].title}'.`
+            ]);
+        }
+        res.status(201).json({ offer_id: result.insertId, ...req.body });
+    } catch (e) { next(e); }
+});
+
+// Razorpay Writing Order Endpoints
+app.post("/api/writing-orders/create-payment-order", async (req, res, next) => {
+    try {
+        const { offer_id, student_id } = req.body;
+        if (!offer_id || !student_id) return res.status(400).json({ message: "Missing offer_id or student_id." });
+
+        const [offers] = await pool.query(
+            `SELECT o.*, wr.title, wr.student_id AS req_student_id, u.name AS writer_name 
+             FROM writing_offers o 
+             JOIN writing_requests wr ON wr.writing_request_id = o.writing_request_id 
+             JOIN users u ON u.user_id = o.writer_id 
+             WHERE o.offer_id = ?`,
+            [offer_id]
+        );
+        if (!offers.length) return res.status(404).json({ message: "Offer not found." });
+        const offer = offers[0];
+
+        if (Number(offer.req_student_id) !== Number(student_id)) {
+            return res.status(403).json({ message: "Only the student who created the request can accept this offer." });
+        }
+
+        const [students] = await pool.query("SELECT user_id, name, email, phone FROM users WHERE user_id = ?", [student_id]);
+        const student = students[0];
+
+        const proposedPrice = Number(offer.proposed_price) || 0;
+        const advanceAmount = Math.round(proposedPrice / 2 * 100) / 100;
+        const platformFee = proposedPrice <= 200 ? 5.00 : 10.00;
+        const totalOnlinePayable = Math.round((advanceAmount + platformFee) * 100) / 100;
+        const remainingAmount = Math.round((proposedPrice - advanceAmount) * 100) / 100;
+
+        const amountInPaise = Math.max(100, Math.round(totalOnlinePayable * 100));
+        const receipt = `wr_rcpt_${offer_id}_${Date.now().toString().slice(-6)}`;
+
+        const razorpayOrder = await razorpayInstance.orders.create({
+            amount: amountInPaise,
+            currency: "INR",
+            receipt,
+            notes: {
+                offer_id: String(offer_id),
+                writing_request_id: String(offer.writing_request_id),
+                student_id: String(student_id),
+                writer_id: String(offer.writer_id),
+                agreed_price: String(proposedPrice),
+                advance_amount: String(advanceAmount),
+                platform_fee: String(platformFee),
+                remaining_amount: String(remainingAmount)
+            }
+        });
+
+        res.json({
+            order_id: razorpayOrder.id,
+            amount: razorpayOrder.amount,
+            currency: razorpayOrder.currency,
+            agreed_price: proposedPrice,
+            advance_amount: advanceAmount,
+            platform_fee: platformFee,
+            total_online_payable: totalOnlinePayable,
+            remaining_amount: remainingAmount,
+            key_id: RAZORPAY_KEY_ID,
+            request_title: offer.title,
+            writer_name: offer.writer_name,
+            student: {
+                name: student ? student.name : "",
+                email: student ? student.email : "",
+                phone: student ? student.phone : ""
+            }
+        });
+    } catch (e) {
+        console.error("[Razorpay Writing Order Error]:", e);
+        next(e);
+    }
+});
+
+app.post("/api/writing-orders/verify-payment", async (req, res, next) => {
+    try {
+        const {
+            razorpay_order_id,
+            razorpay_payment_id,
+            razorpay_signature,
+            offer_id,
+            student_id
+        } = req.body;
+
+        if (!razorpay_order_id || !razorpay_payment_id || !razorpay_signature || !offer_id) {
+            return res.status(400).json({ message: "Missing Razorpay payment verification parameters." });
+        }
+
+        const hmac = crypto.createHmac("sha256", RAZORPAY_KEY_SECRET);
+        hmac.update(`${razorpay_order_id}|${razorpay_payment_id}`);
+        const generatedSignature = hmac.digest("hex");
+
+        if (generatedSignature !== razorpay_signature) {
+            return res.status(400).json({ message: "Payment verification failed. Invalid signature." });
+        }
+
+        const [offers] = await pool.query(
+            `SELECT o.*, wr.title, wr.writing_request_id 
+             FROM writing_offers o 
+             JOIN writing_requests wr ON wr.writing_request_id = o.writing_request_id 
+             WHERE o.offer_id = ?`,
+            [offer_id]
+        );
+        if (!offers.length) return res.status(404).json({ message: "Offer not found." });
+        const offer = offers[0];
+
+        const proposedPrice = Number(offer.proposed_price) || 0;
+        const advanceAmount = Math.round(proposedPrice / 2 * 100) / 100;
+        const platformFee = proposedPrice <= 200 ? 5.00 : 10.00;
+        const totalOnlinePayable = Math.round((advanceAmount + platformFee) * 100) / 100;
+        const remainingAmount = Math.round((proposedPrice - advanceAmount) * 100) / 100;
+
+        // Check if writing_order already exists for this offer
+        const [existing] = await pool.query("SELECT * FROM writing_orders WHERE offer_id = ?", [offer_id]);
+        let writingOrderId;
+        if (existing.length) {
+            writingOrderId = existing[0].writing_order_id || existing[0].order_id;
+            await pool.query(
+                "UPDATE writing_orders SET payment_status = 'half_paid', status = 'in_progress', razorpay_order_id = ?, razorpay_payment_id = ?, total_paid_online = ?, advance_amount = ?, platform_fee = ?, remaining_amount = ? WHERE (writing_order_id = ? OR order_id = ?)",
+                [razorpay_order_id, razorpay_payment_id, totalOnlinePayable, advanceAmount, platformFee, remainingAmount, writingOrderId, writingOrderId]
+            );
+        } else {
+            const [orderRes] = await pool.query(
+                `INSERT INTO writing_orders (writing_request_id, offer_id, student_id, writer_id, agreed_price, advance_amount, platform_fee, total_paid_online, remaining_amount, payment_status, razorpay_order_id, razorpay_payment_id, status, assigned_date, due_date)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'half_paid', ?, ?, 'in_progress', CURDATE(), ?)`,
+                [offer.writing_request_id, offer.offer_id, student_id, offer.writer_id, proposedPrice, advanceAmount, platformFee, totalOnlinePayable, remainingAmount, razorpay_order_id, razorpay_payment_id, offer.delivery_date]
+            );
+            writingOrderId = orderRes.insertId;
+        }
+
+        // Mark this offer as accepted, other offers on this request as rejected
+        await pool.query("UPDATE writing_offers SET status = 'accepted' WHERE offer_id = ?", [offer_id]);
+        await pool.query("UPDATE writing_offers SET status = 'rejected' WHERE writing_request_id = ? AND offer_id != ?", [offer.writing_request_id, offer_id]);
+        await pool.query("UPDATE writing_requests SET status = 'assigned' WHERE writing_request_id = ?", [offer.writing_request_id]);
+
+        // Send notifications
+        const [studentData] = await pool.query("SELECT name FROM users WHERE user_id = ?", [student_id]);
+        const [writerData] = await pool.query("SELECT name FROM users WHERE user_id = ?", [offer.writer_id]);
+        const sName = studentData[0]?.name || "Student";
+        const wName = writerData[0]?.name || "Writer";
+
+        await pool.query("INSERT INTO notifications (user_id, message) VALUES (?, ?)", [
+            offer.writer_id,
+            `🎉 Offer accepted! ${sName} paid ₹${totalOnlinePayable} (₹${advanceAmount} advance + ₹${platformFee} platform fee) via Razorpay for '${offer.title}'. Order #${writingOrderId} is active. You can now chat and upload assignments!`
+        ]);
+        await pool.query("INSERT INTO notifications (user_id, message) VALUES (?, ?)", [
+            student_id,
+            `✅ Payment successful! You paid ₹${totalOnlinePayable} advance (Payment ID: ${razorpay_payment_id}). Writer ${wName} is assigned to '${offer.title}'. Remaining ₹${remainingAmount} to be paid in person upon delivery.`
+        ]);
+
+        res.json({
+            ok: true,
+            message: "Payment verified successfully! Writing order created.",
+            writing_order_id: writingOrderId,
+            agreed_price: proposedPrice,
+            advance_amount: advanceAmount,
+            remaining_amount: remainingAmount,
+            platform_fee: platformFee
+        });
+    } catch (e) {
+        console.error("[Razorpay Writing Verify Error]:", e);
+        next(e);
+    }
+});
+
+app.get("/api/writing-orders", async (req, res, next) => {
+    try {
+        const { user_id } = req.query;
+        let sql = `
+            SELECT o.*, o.order_id AS writing_order_id, wr.title, wr.subject, wr.type,
+                   student.name AS student_name, student.email AS student_email,
+                   writer.name AS writer_name, writer.email AS writer_email
+            FROM writing_orders o
+            JOIN writing_requests wr ON wr.writing_request_id = o.writing_request_id
+            JOIN users student ON student.user_id = o.student_id
+            JOIN users writer ON writer.user_id = o.writer_id
+        `;
+        const params = [];
+        if (user_id) {
+            sql += " WHERE o.student_id = ? OR o.writer_id = ?";
+            params.push(user_id, user_id);
+        }
+        sql += " ORDER BY o.order_id DESC";
+        const [rows] = await pool.query(sql, params);
+        res.json(rows);
+    } catch (e) { next(e); }
+});
+
+// Writing Order Chat Routes (Available after 50% advance payment)
+app.get("/api/writing-orders/:id/messages", async (req, res, next) => {
+    try {
+        const [orders] = await pool.query("SELECT * FROM writing_orders WHERE order_id = ?", [req.params.id]);
+        if (!orders.length) return res.status(404).json({ message: "Writing order not found." });
+        const order = orders[0];
+
+        if (order.payment_status !== "half_paid" && order.payment_status !== "fully_paid") {
+            return res.status(403).json({ message: "Chat is only available after 50% advance payment is completed." });
+        }
+
+        const [messages] = await pool.query(
+            `SELECT m.*, u.name AS sender_name 
+             FROM writing_messages m 
+             JOIN users u ON u.user_id = m.sender_id 
+             WHERE m.writing_order_id = ? 
+             ORDER BY m.created_at ASC`,
+            [order.order_id]
+        );
+        res.json(messages);
+    } catch (e) { next(e); }
+});
+
+app.post("/api/writing-orders/:id/messages", async (req, res, next) => {
+    try {
+        const { sender_id, message } = req.body;
+        if (!sender_id || !message || !message.trim()) return res.status(400).json({ message: "Sender ID and message content are required." });
+
+        const [orders] = await pool.query("SELECT * FROM writing_orders WHERE order_id = ?", [req.params.id]);
+        if (!orders.length) return res.status(404).json({ message: "Writing order not found." });
+        const order = orders[0];
+
+        if (order.payment_status !== "half_paid" && order.payment_status !== "fully_paid") {
+            return res.status(403).json({ message: "Chat is locked until 50% advance payment is made." });
+        }
+
+        const receiverId = Number(sender_id) === Number(order.student_id) ? order.writer_id : order.student_id;
+
+        const [result] = await pool.query(
+            "INSERT INTO writing_messages (writing_order_id, sender_id, receiver_id, message) VALUES (?, ?, ?, ?)",
+            [order.order_id, sender_id, receiverId, message.trim()]
+        );
+
+        res.status(201).json({ message_id: result.insertId, writing_order_id: order.order_id, sender_id, receiver_id: receiverId, message: message.trim(), created_at: new Date() });
+    } catch (e) { next(e); }
+});
+
+// Writing Deliverables (PDF Assignment Upload/View)
+app.get("/api/writing-orders/:id/deliverables", async (req, res, next) => {
+    try {
+        const [orders] = await pool.query("SELECT * FROM writing_orders WHERE order_id = ?", [req.params.id]);
+        if (!orders.length) return res.status(404).json({ message: "Writing order not found." });
+
+        const [rows] = await pool.query("SELECT * FROM writing_deliverables WHERE writing_order_id = ? ORDER BY uploaded_at DESC", [orders[0].order_id]);
+        res.json(rows);
+    } catch (e) { next(e); }
+});
+
+app.post("/api/writing-orders/:id/deliverables", upload.single("pdf"), async (req, res, next) => {
+    try {
+        const [orders] = await pool.query("SELECT * FROM writing_orders WHERE order_id = ?", [req.params.id]);
+        if (!orders.length) return res.status(404).json({ message: "Writing order not found." });
+        const order = orders[0];
+
+        let file_url = req.body.file_url;
+        let file_name = req.body.file_name || "assignment.pdf";
+        if (req.file) {
+            file_url = "/frontend/assets/item_images/" + req.file.filename;
+            file_name = req.file.originalname;
+        }
+        if (!file_url) return res.status(400).json({ message: "PDF file upload or file URL is required." });
+
+        const [result] = await pool.query(
+            "INSERT INTO writing_deliverables (writing_order_id, file_url, file_name, notes) VALUES (?, ?, ?, ?)",
+            [order.order_id, file_url, file_name, req.body.notes || "PDF assignment uploaded by writer."]
+        );
+
+        await pool.query("UPDATE writing_orders SET status = 'delivered', delivered_date = CURDATE() WHERE order_id = ? AND status = 'in_progress'", [order.order_id]);
+        await pool.query("UPDATE writing_requests SET status = 'delivered' WHERE writing_request_id = ?", [order.writing_request_id]);
+
+        await pool.query("INSERT INTO notifications (user_id, message) VALUES (?, ?)", [
+            order.student_id,
+            `📄 Writer uploaded the assignment PDF '${file_name}' for your writing order. You can view/download it now!`
+        ]);
+
+        res.status(201).json({ deliverable_id: result.insertId, writing_order_id: order.order_id, file_url, file_name });
+    } catch (e) { next(e); }
+});
+
+// Complete Writing Order (Writer collects remaining 50% in person & marks done)
+app.patch("/api/writing-orders/:id/complete", async (req, res, next) => {
+    try {
+        const [orders] = await pool.query("SELECT o.*, wr.title FROM writing_orders o JOIN writing_requests wr ON wr.writing_request_id = o.writing_request_id WHERE o.order_id = ?", [req.params.id]);
+        if (!orders.length) return res.status(404).json({ message: "Writing order not found." });
+        const order = orders[0];
+
+        await pool.query(
+            "UPDATE writing_orders SET status = 'completed', payment_status = 'fully_paid', delivered_date = COALESCE(delivered_date, CURDATE()) WHERE order_id = ?",
+            [order.order_id]
+        );
+        await pool.query("UPDATE writing_requests SET status = 'completed' WHERE writing_request_id = ?", [order.writing_request_id]);
+        await pool.query("UPDATE writer_profiles SET completed_orders = completed_orders + 1 WHERE writer_id = ?", [order.writer_id]);
+
+        await pool.query("INSERT INTO notifications (user_id, message) VALUES (?, ?)", [
+            order.student_id,
+            `🎉 Writing order '${order.title}' marked as completed! Remaining ₹${order.remaining_amount} paid in person to the writer.`
+        ]);
+        await pool.query("INSERT INTO notifications (user_id, message) VALUES (?, ?)", [
+            order.writer_id,
+            `✅ Writing order '${order.title}' marked as completed! Remaining ₹${order.remaining_amount} collected in person.`
+        ]);
+
+        res.json({ ok: true, message: "Order marked as completed!" });
+    } catch (e) { next(e); }
+});
 app.get("/api/favorites/:userId", async (req, res, next) => { try { const [rows] = await pool.query("SELECT i.*, c.category_name, u.name owner_name FROM favorites f JOIN items i ON i.item_id=f.item_id JOIN categories c ON c.category_id=i.category_id JOIN users u ON u.user_id=i.owner_id WHERE f.user_id=?", [req.params.userId]); res.json(rows.map(itemView)); } catch (e) { next(e); } });
 app.post("/api/favorites", async (req, res, next) => { try { await pool.query("INSERT IGNORE INTO favorites (user_id,item_id) VALUES (?,?)", [req.body.user_id, req.body.item_id]); res.status(201).json({ ok: true }); } catch (e) { next(e); } });
 app.delete("/api/favorites/:userId/:itemId", async (req, res, next) => { try { await pool.query("DELETE FROM favorites WHERE user_id=? AND item_id=?", [req.params.userId, req.params.itemId]); res.json({ ok: true }); } catch (e) { next(e); } });

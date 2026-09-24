@@ -177,25 +177,46 @@ CREATE TABLE Writing_Orders (
     offer_id             INT NOT NULL UNIQUE,
     student_id            INT NOT NULL,
     writer_id             INT NOT NULL,
-    agreed_price           DECIMAL(8,2) NOT NULL,
-    assigned_date           DATE NOT NULL,
-    due_date                DATE NOT NULL,
-    delivered_date           DATE NULL,
-    status                    ENUM('assigned','in_progress','delivered','revision_requested','completed','cancelled','disputed') DEFAULT 'assigned',
+    agreed_price           DECIMAL(10,2) NOT NULL,
+    advance_amount         DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+    platform_fee           DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+    total_paid_online      DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+    remaining_amount       DECIMAL(10,2) NOT NULL DEFAULT 0.00,
+    payment_status         VARCHAR(40) NOT NULL DEFAULT 'unpaid',
+    razorpay_order_id      VARCHAR(100) DEFAULT NULL,
+    razorpay_payment_id    VARCHAR(100) DEFAULT NULL,
+    assigned_date          DATE DEFAULT NULL,
+    due_date               DATE DEFAULT NULL,
+    delivered_date         DATE NULL,
+    status                 VARCHAR(30) DEFAULT 'in_progress',
+    created_at             DATETIME DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT fk_word_request FOREIGN KEY (writing_request_id) REFERENCES Writing_Requests(writing_request_id) ON DELETE CASCADE,
     CONSTRAINT fk_word_offer   FOREIGN KEY (offer_id)           REFERENCES Writing_Offers(offer_id)             ON DELETE CASCADE,
     CONSTRAINT fk_word_student FOREIGN KEY (student_id)         REFERENCES Users(user_id)                       ON DELETE CASCADE,
-    CONSTRAINT fk_word_writer  FOREIGN KEY (writer_id)          REFERENCES Writer_Profiles(writer_id)           ON DELETE CASCADE
+    CONSTRAINT fk_word_writer  FOREIGN KEY (writer_id)          REFERENCES Users(user_id)                       ON DELETE CASCADE
 );
 
 CREATE TABLE Writing_Deliverables (
     deliverable_id       INT AUTO_INCREMENT PRIMARY KEY,
     writing_order_id     INT NOT NULL,
-    file_url              VARCHAR(255) NOT NULL,
+    file_url              VARCHAR(500) NOT NULL,
+    file_name             VARCHAR(255) DEFAULT NULL,
     version_no             INT DEFAULT 1,
     uploaded_at             DATETIME DEFAULT CURRENT_TIMESTAMP,
     notes                    TEXT,
     CONSTRAINT fk_wd_order FOREIGN KEY (writing_order_id) REFERENCES Writing_Orders(writing_order_id) ON DELETE CASCADE
+);
+
+CREATE TABLE Writing_Messages (
+    message_id           INT AUTO_INCREMENT PRIMARY KEY,
+    writing_order_id     INT NOT NULL,
+    sender_id            INT NOT NULL,
+    receiver_id          INT NOT NULL,
+    message              TEXT NOT NULL,
+    created_at           DATETIME DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_wm_order  FOREIGN KEY (writing_order_id) REFERENCES Writing_Orders(writing_order_id) ON DELETE CASCADE,
+    CONSTRAINT fk_wm_sender FOREIGN KEY (sender_id)        REFERENCES Users(user_id)          ON DELETE CASCADE,
+    CONSTRAINT fk_wm_recv   FOREIGN KEY (receiver_id)      REFERENCES Users(user_id)          ON DELETE CASCADE
 );
 
 CREATE TABLE Writing_Reviews (
@@ -215,8 +236,8 @@ CREATE TABLE Writing_Reviews (
 CREATE TABLE Writing_Payments (
     payment_id            INT AUTO_INCREMENT PRIMARY KEY,
     writing_order_id       INT NOT NULL UNIQUE,
-    amount                   DECIMAL(8,2) NOT NULL,
-    payment_method            ENUM('upi','cash','wallet') DEFAULT 'upi',
+    amount                   DECIMAL(10,2) NOT NULL,
+    payment_method            ENUM('upi','cash','wallet','razorpay') DEFAULT 'razorpay',
     status                    ENUM('pending','paid','refunded') DEFAULT 'pending',
     paid_at                   DATETIME NULL,
     CONSTRAINT fk_wpay_order FOREIGN KEY (writing_order_id) REFERENCES Writing_Orders(writing_order_id) ON DELETE CASCADE

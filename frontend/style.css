@@ -2684,3 +2684,102 @@ textarea {
         font-size: 13px;
     }
 }
+
+/* ==========================================================================
+   Writing Orders & Chat System Enhancements
+   ========================================================================== */
+
+.chat-container {
+    display: flex;
+    flex-direction: column;
+    height: 380px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: var(--radius-card);
+    background: #0f172a;
+    overflow: hidden;
+    margin-top: 10px;
+}
+
+.chat-messages {
+    flex: 1;
+    overflow-y: auto;
+    padding: 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.chat-bubble {
+    max-width: 82%;
+    padding: 10px 14px;
+    border-radius: 14px;
+    font-size: 13.5px;
+    line-height: 1.45;
+    position: relative;
+    word-break: break-word;
+}
+
+.chat-bubble.sent {
+    align-self: flex-end;
+    background: linear-gradient(135deg, #2563eb, #1d4ed8);
+    color: #ffffff;
+    border-bottom-right-radius: 3px;
+    box-shadow: 0 2px 8px rgba(37, 99, 235, 0.25);
+}
+
+.chat-bubble.received {
+    align-self: flex-start;
+    background: #1e293b;
+    color: #e2e8f0;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-bottom-left-radius: 3px;
+}
+
+.chat-meta {
+    font-size: 10px;
+    opacity: 0.75;
+    margin-top: 4px;
+    text-align: right;
+}
+
+.chat-input-bar {
+    display: flex;
+    gap: 8px;
+    padding: 10px 12px;
+    background: #1e293b;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.chat-input-bar input {
+    flex: 1;
+    background: #0f172a;
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    color: #fff;
+    border-radius: 8px;
+    padding: 8px 12px;
+    font-size: 13.5px;
+}
+
+.chat-input-bar input:focus {
+    outline: none;
+    border-color: #38bdf8;
+}
+
+.writing-order-card {
+    background: #1e293b;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: var(--radius-card);
+    padding: 18px;
+    box-shadow: var(--shadow-card);
+}
+
+.deliverable-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 14px;
+    background: rgba(255, 255, 255, 0.04);
+    border-radius: 8px;
+    margin-bottom: 8px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+}
